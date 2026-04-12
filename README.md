@@ -1,6 +1,6 @@
 # scTopoDEC 
 
-**Topological Deep Embedded Clustering for single-cell RNA-seq data.**
+**Topological deep embedded clustering for single-cell RNA-seq data.**
 
 scTopoDEC is a deep learning framework that identifies cell populations while preserving the biological manifold using **Persistent Homology** and **ZINB-Autoencoders**.
 
