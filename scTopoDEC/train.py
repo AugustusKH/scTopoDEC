@@ -25,7 +25,7 @@ def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 
     opt_class = optimizers.get(optimizer).__class__
     opt = opt_class(learning_rate=learning_rate, clipnorm=clip_grad)
-    model.compile(loss=loss_fn, optimizer=opt, metrics=[loss_fn])
+    model.compile(loss=loss_fn, optimizer=opt)
 
     if initial_weights and os.path.exists(initial_weights):
         if verbose:
@@ -211,15 +211,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     opt_dec = optimizers.get(optimizer)
     opt_dec.learning_rate = learning_rate
     opt_dec.clipnorm = 1.0  
-    model.compile(
-        loss=['kl_divergence', ae_loss], 
-        loss_weights=active_weights, 
-        optimizer=opt_dec,
-        metrics={
-            'clustering': 'kl_divergence',        # Shows as 'clustering_kld' or similar
-            'zinb_bundle': ae_loss      # Shows as 'zinb_bundle_loss'
-        }
-    )
+    model.compile(loss=['kld', ae_loss], loss_weights=active_weights, optimizer=opt_dec)
 
     # 4. Iterative DEC training
     print("...Training for clustering...")
@@ -267,8 +259,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         h = history.history
         keys = list(h.keys()) 
         l_total = h.get('loss', [0])[-1]
-        l_clust = h.get('clustering_kld', h.get('clustering_loss', h.get(keys[1], [0])))[-1]
-        l_recon = h.get('zinb_bundle_loss', h.get('zinb_loss', h.get(keys[2], [0])))[-1]
+        l_clust = h.get('clustering_loss', h.get(keys[1], [0]))[-1]
+        l_recon = h.get('zinb_loss', h.get(keys[2], [0]))[-1]
         losses = [l_total, l_clust, l_recon]
 
         if save_weights and output_dir and epoch % save_interval == 0:
