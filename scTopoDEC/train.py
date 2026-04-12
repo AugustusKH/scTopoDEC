@@ -212,11 +212,11 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     opt_dec.learning_rate = learning_rate
     opt_dec.clipnorm = 1.0  
     model.compile(
-        loss=['kld', ae_loss], 
+        loss=['kl_divergence', ae_loss], 
         loss_weights=active_weights, 
         optimizer=opt_dec,
         metrics={
-            'clustering': 'kld',        # Shows as 'clustering_kld' or similar
+            'clustering': 'kl_divergence',        # Shows as 'clustering_kld' or similar
             'zinb_bundle': ae_loss      # Shows as 'zinb_bundle_loss'
         }
     )
