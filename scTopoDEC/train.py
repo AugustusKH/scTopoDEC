@@ -100,7 +100,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     clustering_layer = model.get_layer(name='clustering')
     
     # 1. Pretrain
-    print("...Pretraining Autoencoder...")
+    print("\n...Pretraining Autoencoder...")
     start_pretrain = time.time()
 
     network.model = network.zinb_ae # Temporarily point network.model to the AE version
@@ -115,7 +115,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     print(f"Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
 
     # 2. k-mean for centroid initialization
-    print("...Initializing cluster centers with k-means...")
+    print("\n...Initializing cluster centers with k-means...")
     kmeans = KMeans(n_clusters=network.n_clusters, n_init=20)
     latent_feat = network.encoder.predict({'count': adata.X, 
                                            'size_factors': adata.obs.size_factors.values})
@@ -154,7 +154,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         return total_loss, l_zinb, l_kl, l_sk
 
     # 4. Iterative Training Loop
-    print("...Training for clustering...")
+    print("\n...Training for clustering...")
     start_total_train = time.time()
 
     num_samples = adata.n_obs
@@ -216,7 +216,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
     clustering_layer = model.get_layer(name='clustering')
     
     # 1. Pretrain 
-    print("...Pretraining Autoencoder...")
+    print("\n...Pretraining Autoencoder...")
     start_pretrain = time.time()
     network.model = network.zinb_ae 
     ae_train(adata, network, epochs=pretrain_epochs, optimizer=pretrain_optimizer,
@@ -225,7 +225,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
     print(f"Pretraining complete in {time.time() - start_pretrain:.2f}s")
 
     # 2. k-mean for centroid initialization
-    print("...Initializing cluster centers with k-means...")
+    print("\n...Initializing cluster centers with k-means...")
     kmeans = KMeans(n_clusters=network.n_clusters, n_init=20)
     latent_feat = network.encoder.predict({'count': adata.X, 
                                            'size_factors': adata.obs.size_factors.values})
@@ -264,7 +264,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
         return total_loss, l_zinb, l_kl, l_sk
 
     # 4. Iterative Ramping Loop
-    print("...Training for clustering with Resolution Ramping...")
+    print("\n...Training for clustering with Resolution Ramping...")
     start_total_train = time.time()
     num_samples = adata.n_obs
     loss_vals = [0, 0, 0, 0]
