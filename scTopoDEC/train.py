@@ -97,7 +97,6 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
    
     model = network.model
     ae_loss_fn = network.loss 
-    active_weights = loss_weights[:2] # We use only three losses for DEC
     clustering_layer = model.get_layer(name='clustering')
     
     # 1. Pretrain
