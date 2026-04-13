@@ -52,14 +52,14 @@ def scTopoDEC(adata,                        # single-cell args
         training_kwds={},
         pretrain_epochs=200,                # Pretrain args    
         pretrain_optimizer='adam',
-        pretrain_learning_rate=0.01,           
-        reduce_lr=10,
+        pretrain_learning_rate=0.01,  
+        pretraining_kwds={},         
+        reduce_lr=10,                       # Both pretrain and train args
         early_stop=15,
         batch_size=32,
         random_state=0,
         threads=None,
         verbose=False,
-        pretraining_kwds={},
         return_model=False,
         return_info=False,
         copy=False,
@@ -302,6 +302,7 @@ def scTopoDEC(adata,                        # single-cell args
                            loss_weights=loss_weights,
                            update_interval=update_interval,
                            tol=tol,
+                           early_stop_patience=early_stop,
                            ground_truth=ground_truth,
                            res_ramp=res_ramp,
                            verbose=verbose,
@@ -315,6 +316,8 @@ def scTopoDEC(adata,                        # single-cell args
                       loss_weights=loss_weights,
                       update_interval=update_interval,
                       tol=tol,
+                      reduce_lr_patience=reduce_lr,
+                      early_stop_patience=early_stop,
                       ground_truth=ground_truth,
                       verbose=verbose,
                       **training_kwds)
@@ -336,9 +339,9 @@ def scTopoDEC(adata,                        # single-cell args
     # 7. Return outputs
     print('\nAlgorithm runs successfully!')
     if ae_type == 'dec':
-        adata.obs['dec_cluster'] = adata.obs_names.map(adata_train.obs['dec_cluster'])
-        adata.obsm['dec_probs'] = adata_train.obsm['dec_probs'] 
-        adata.obsm['dec'] = adata_train.obsm['dec']
+        adata.obs['stc_cluster'] = adata.obs_names.map(adata_train.obs['stc_cluster'])
+        adata.obsm['stc_probs'] = adata_train.obsm['stc_probs'] 
+        adata.obsm['stc'] = adata_train.obsm['stc']
         
         if return_model:
             return (adata, network) if copy else network

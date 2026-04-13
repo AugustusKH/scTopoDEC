@@ -14,6 +14,10 @@ from .loss import soft_kmeans_loss
 from .metric import cluster_acc
 
 
+# ==============================================================================
+# Global train step
+# ==============================================================================
+
 @tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
                ae_loss_fn, opt_dec, loss_weights, topo_loss_fn=None):
@@ -56,6 +60,10 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
     
     return total_loss, l_zinb, l_kl, l_sk, l_topo
 
+
+# ==============================================================================
+# Pretraining (ZINB-autoencoder)
+# ==============================================================================
 
 def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.001,
           initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
@@ -132,12 +140,16 @@ def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
     return history
 
 
+# ==============================================================================
+# Clustering (DEC)
+# ==============================================================================
+
 def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
               optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
               pretrain_optimizer='adam', pretrain_learning_rate=0.01, topo_loss_fn=None,
-              **kwds):
+              reduce_lr_patience=10, early_stop_patience=15, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -182,7 +194,6 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     best_loss = np.inf
     best_weights = None
     wait, es_wait = 0, 0
-    reduce_lr_patience, early_stop_patience = 10, 15
     factor = 0.1
 
     for epoch in range(epochs):
@@ -198,8 +209,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                 ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
                 l_print = [np.round(l, 5) for l in loss_vals]
-                print(f'Epoch {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, '
-                      f'Total_L={l_print[0]}, L_zinb={l_print[1]}, L_kl={l_print[2]}, L_sk={l_print[3]}')
+                print(f"Epoch {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, Total_L={l_print[0]}")
             # -------------------------
 
             # Convergence Check
@@ -232,7 +242,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
-                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
+                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[3]:.4f}")
             
         current_loss = loss_vals[0]
 
@@ -268,11 +278,13 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
     return y_pred
 
+
 def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
                    optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
                    batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), **kwds):
+                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), topo_loss_fn=None, 
+                   early_stop_patience=15, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -298,53 +310,34 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
 
     # 3. Setup Optimizer and Manual Train Step
     opt_dec = optimizers.get(optimizer)
-    
-    @tf.function
-    def train_step(x_counts, x_sf, y_p, y_raw, current_weights):
-        with tf.GradientTape() as tape:
-            z = network.encoder({'count': x_counts, 'size_factors': x_sf})
-            q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
-            mu = clustering_layer.weights[0]
-
-            # Clip Q and P to avoid log(0)
-            q = tf.clip_by_value(q, 1e-10, 1.0)
-            y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
-
-            l_zinb = ae_loss_fn(y_raw, zinb_out)
-            l_kl = keras.losses.KLDivergence()(y_p, q)
-            l_sk = soft_kmeans_loss(z, mu)
-
-            # Apply the dynamic weights from the ramping phase
-            total_loss = (current_weights[0] * l_zinb) + \
-                         (current_weights[1] * l_kl) + \
-                         (current_weights[2] * l_sk)
-
-        tf.debugging.assert_all_finite(total_loss, "Loss became NaN before gradients")
-
-        grads = tape.gradient(total_loss, model.trainable_variables)
-        grads, _ = tf.clip_by_global_norm(grads, 5.0)
-        opt_dec.apply_gradients(zip(grads, model.trainable_variables))
-        return total_loss, l_zinb, l_kl, l_sk
 
     # 4. Iterative Ramping Loop
     print("\n...Training for clustering with Resolution Ramping...")
     start_total_train = time.time()
     num_samples = adata.n_obs
-    loss_vals = [0, 0, 0, 0]
+    loss_vals = [0, 0, 0, 0, 0]
+
+    # Define ReduceLROnPlateau and EarlyStopping variables
+    best_loss = np.inf
+    best_weights = None
 
     for res_idx, current_res in enumerate(res_ramp):
         print(f"\n>>> Phase {res_idx+1}: Scaling Clustering/SoftK weights by {current_res}")
+
+        # Reset patience and best loss for each new resolution phase
+        es_wait = 0
+        phase_best_loss = np.inf
         
         # Scale KL and SoftK weights by the current resolution factor
         current_weights = [
-            loss_weights[0],               # ZINB stays constant
-            loss_weights[1] * current_res, # KL scales
-            loss_weights[2] * current_res  # SoftK scales
+            loss_weights[0],                # ZINB stays constant
+            loss_weights[1] * current_res,  # KL scales
+            loss_weights[2] * current_res,  # SoftK scales
+            loss_weights[3]                 # Topo
         ]
         
         # Anneal learning rate for each phase
         opt_dec.learning_rate = learning_rate / (res_idx + 1)
-        
         epochs_per_phase = epochs // len(res_ramp)
 
         for epoch in range(epochs_per_phase):
@@ -353,39 +346,66 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
 
-                # --- Evaluation Block ---
+                # --- Evaluation block ---
                 if ground_truth is not None and ground_truth in adata.obs:
                     y_true = adata.obs[ground_truth].values
                     acc = np.round(cluster_acc(y_true, y_pred), 5)
                     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                     ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
-                    l_print = [np.round(l, 5) for l in loss_vals]
-                    print(f'Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, '
-                          f'Total_L={l_print[0]}, L_zinb={l_print[1]}, L_kl={l_print[2]}, L_sk={l_print[3]}')
+                    l_print = [np.round(float(l), 5) for l in loss_vals]
+                    print(f"Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, Total_L={l_print[0]}")
                 # -------------------------
 
-                # Convergence Check
+                # Convergence check
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
                 y_pred_last = np.copy(y_pred)
                 if epoch > 0 and delta_label < tol:
                     print(f'Converged at resolution {current_res}')
                     break
 
-            # Batch Training
+            # Batch training
             indices = np.arange(num_samples)
             np.random.shuffle(indices)
             for i in range(0, num_samples, batch_size):
                 batch_idx = indices[i:i+batch_size]
-                x_c = adata.X[batch_idx]
+                x_c = tf.cast(adata.X[batch_idx], tf.float32)
                 x_s = adata.obs.size_factors.values[batch_idx]
-                y_p_batch = p[batch_idx]
+                y_p_batch = tf.cast(p[batch_idx], tf.float32)
                 y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-                loss_vals = train_step(x_c, x_s, y_p_batch, y_r, current_weights)
+                loss_vals = train_step(
+                    x_c, x_s, y_p_batch, y_r, 
+                    network=network, 
+                    model=model, 
+                    clustering_layer=clustering_layer,
+                    ae_loss_fn=ae_loss_fn, 
+                    opt_dec=opt_dec, 
+                    loss_weights=current_weights,
+                    topo_loss_fn=topo_loss_fn
+                )
+
+            current_loss = float(loss_vals[0])
+
+            # --- Logic for EarlyStopping and best weights ---
+            if current_loss < phase_best_loss - tol:
+                phase_best_loss = current_loss
+                best_weights = [tf.identity(w) for w in model.get_weights()]
+                es_wait = 0
+            else:
+                es_wait += 1
+                if es_wait >= early_stop_patience:
+                    print(f"Phase {current_res} early stopping at epoch {epoch}")
+                    break
 
             if verbose:
                 print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, "
-                      f"L_zinb: {loss_vals[1]:.4f}, L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
+                      f"L_zinb: {loss_vals[1]:.4f}, L_kl: {loss_vals[2]:.4f}, "
+                      f"L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
+                
+    # --- Restore best weights ---
+    if best_weights is not None:
+        print("Restoring best weights from training history...")
+        model.set_weights(best_weights)
 
     print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
     

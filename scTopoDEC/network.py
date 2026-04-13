@@ -294,10 +294,10 @@ class DEC(ZINBAutoencoder):
         
         print('Calculating clustering...')
         # 1. Extract Latent space and Cluster Probabilities
-        adata.obsm['dec'] = self.encoder.predict(inputs, verbose=0)
+        adata.obsm['stc'] = self.encoder.predict(inputs, verbose=0)
         q, denoise = self.model.predict(inputs, verbose=0)
     
-        adata.obsm['dec_probs'] = q
+        adata.obsm['stc_probs'] = q
     
         # 2. Initial Argmax (might result in skipping numbers like 5, 6)
         raw_clusters = np.argmax(q, axis=1)
@@ -308,8 +308,8 @@ class DEC(ZINBAutoencoder):
         standardized_clusters = le.fit_transform(raw_clusters)
     
         # 4. Save to adata as strings/categories
-        adata.obs['dec_cluster'] = standardized_clusters.astype(str)
-        adata.obs['dec_cluster'] = adata.obs['dec_cluster'].astype('category')
+        adata.obs['stc_cluster'] = standardized_clusters.astype(str)
+        adata.obs['stc_cluster'] = adata.obs['stc_cluster'].astype('category')
 
         print(f'Identified {len(le.classes_)} unique clusters.')
 
