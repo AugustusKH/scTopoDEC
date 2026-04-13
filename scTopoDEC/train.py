@@ -242,7 +242,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
-                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[3]:.4f}")
+                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
             
         current_loss = loss_vals[0]
 
