@@ -1,4 +1,5 @@
 import csv, os, random
+import time
 import numpy as np
 import tensorflow as tf
 import keras
@@ -9,6 +10,7 @@ from sklearn import metrics
 from . import io
 from .utils import compute_target_distribution
 from .network import network_options
+from .loss import soft_kmeans_loss
 from .metric import cluster_acc
 
 
@@ -87,108 +89,21 @@ def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
     return history
 
 
-def ae_train_with_args(args):
-    random.seed(42)
-    np.random.seed(42)
-    tf.random.set_seed(42)
-    keras.utils.set_random_seed(42)  
-    os.environ['PYTHONHASHSEED'] = '0'
-
-    # If perform hyperparams -> exit
-    if args.hyper:
-        hyper(args)
-        return
-
-    from .hyper import hyper
-
-    adata = io.read_dataset(args.input,
-                            transpose=(not args.transpose),
-                            check_counts=args.checkcounts,
-                            test_split=args.testsplit)
-
-    adata = io.normalize(adata,
-                         size_factors=args.sizefactors,
-                         logtrans_input=args.loginput,
-                         normalize_input=args.norminput)
-
-    if args.denoisesubset:
-        genelist = list(set(io.read_genelist(args.denoisesubset)))
-
-        if not all(g in adata.var_names for g in genelist):
-             raise ValueError('Gene list is not overlapping with dataset')
-
-        output_size = len(genelist)
-
-    else:
-        genelist = None
-        output_size = adata.n_vars
-
-    hidden_size = [int(x) for x in args.hiddensize.split(',')]
-    hidden_dropout = [float(x) for x in args.dropoutrate.split(',')]
-
-    if len(hidden_dropout) == 1:
-        hidden_dropout = hidden_dropout[0]
-
-    input_size = adata.n_vars
-    
-    net = network_options[args.type](
-        input_size=input_size,
-        output_size=output_size,
-        hidden_size=hidden_size,
-        l2_coef=args.l2,
-        l1_coef=args.l1,
-        l2_enc_coef=args.l2enc,
-        l1_enc_coef=args.l1enc,
-        ridge=args.ridge,
-        hidden_dropout=hidden_dropout,
-        input_dropout=args.inputdropout,
-        batchnorm=args.batchnorm,
-        activation=args.activation,
-        init=args.init,
-        debug=args.debug,
-        file_path=args.outputdir
-    )
-
-    net.save() # Saves metadata
-    net.build()
-
-    history = train(
-        adata[adata.obs.dca_split == 'train'], 
-        net,
-        output_dir=args.outputdir,
-        learning_rate=args.learningrate,
-        epochs=args.epochs, 
-        batch_size=args.batchsize,
-        early_stop=args.earlystop,
-        reduce_lr=args.reducelr,
-        output_subset=genelist,
-        optimizer=args.optimizer,
-        clip_grad=args.gradclip,
-        save_weights=args.saveweights,
-        initial_weights=args.loadweights,
-        tensorboard=args.tensorboard
-    )
-
-    if genelist:
-        predict_columns = adata.var_names[adata.var_names.isin(genelist)]
-    else:
-        predict_columns = adata.var_names
-
-    net.predict(adata, mode='full', return_info=True)
-
-
 def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
               optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
-              batch_size=256, tol=1e-3, loss_weights=[1, 1, 0], use_raw_as_output=True,  
-              verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-              pretrain_learning_rate=0.01, **kwds):
+              batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
+              use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
+              pretrain_optimizer='adam', pretrain_learning_rate=0.01, **kwds):
    
     model = network.model
-    ae_loss = network.loss # ZINB loss
-    active_weights = loss_weights[:2] # We use only two losses for DEC
-
+    ae_loss_fn = network.loss 
+    active_weights = loss_weights[:2] # We use only three losses for DEC
+    clustering_layer = model.get_layer(name='clustering')
+    
     # 1. Pretrain
     print("...Pretraining Autoencoder...")
+    start_pretrain = time.time()
+
     network.model = network.zinb_ae # Temporarily point network.model to the AE version
     ae_train(adata, 
              network, 
@@ -197,6 +112,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
              learning_rate=pretrain_learning_rate,
              verbose=verbose)
     network.model = model
+    end_pretrain = time.time() 
+    print(f"Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
 
     # 2. k-mean for centroid initialization
     print("...Initializing cluster centers with k-means...")
@@ -207,22 +124,41 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     y_pred_last = np.copy(y_pred)
     model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
 
-    # 3. Compile Model with Multiple Outputs
+    # 3. Setup Optimizer
     opt_dec = optimizers.get(optimizer)
     opt_dec.learning_rate = learning_rate
-    opt_dec.clipnorm = 1.0  
-    model.compile(loss=['kld', ae_loss], loss_weights=active_weights, optimizer=opt_dec)
 
-    # 4. Iterative DEC training
+    @tf.function
+    def train_step(x_counts, x_sf, y_p, y_raw):
+        with tf.GradientTape() as tape:
+            z = network.encoder({'count': x_counts, 'size_factors': x_sf})
+            q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
+            mu = clustering_layer.weights[0] # Cluster centers
+
+            l_zinb = ae_loss_fn(y_raw, zinb_out)
+            l_kl = keras.losses.KLDivergence()(y_p, q)
+            l_sk = soft_kmeans_loss(z, mu)
+
+            total_loss = (loss_weights[0] * l_zinb) + \
+                         (loss_weights[1] * l_kl) + \
+                         (loss_weights[2] * l_sk)
+
+        grads = tape.gradient(total_loss, model.trainable_variables)
+        opt_dec.apply_gradients(zip(grads, model.trainable_variables))
+        return total_loss, l_zinb, l_kl, l_sk
+
+    # 4. Iterative Training Loop
     print("...Training for clustering...")
-    losses = [0.0, 0.0, 0.0]
+    start_total_train = time.time()
+
+    num_samples = adata.n_obs
+    loss_vals = [0, 0, 0, 0] 
+
     for epoch in range(epochs):
-        # Update target distribution 'p' every 'update_interval' epochs
         if epoch % update_interval == 0:
-            q, _ = model.predict({'count': adata.X, 
-                                  'size_factors': adata.obs.size_factors.values}, verbose=0)
-            p = compute_target_distribution(q) 
-            y_pred = q.argmax(1) # Predicted cluster
+            q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+            p = compute_target_distribution(q)
+            y_pred = q.argmax(1)
 
             # --- Evaluation Block ---
             if ground_truth is not None and ground_truth in adata.obs:
@@ -230,67 +166,57 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 acc = np.round(cluster_acc(y_true, y_pred), 5)
                 nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                 ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
-                l_print = [np.round(l, 5) for l in losses]
+                l_print = [np.round(l, 5) for l in loss_vals]
                 print(f'Epoch {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, '
-                      f'Total_L={l_print[0]}, Lc={l_print[1]}, Lr={l_print[2]}')
+                      f'Total_L={l_print[0]}, L_zinb={l_print[1]}, L_kl={l_print[2]}, L_sk={l_print[3]}')
             # -------------------------
 
+            # Convergence Check
             delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
             y_pred_last = np.copy(y_pred)
-            
             if epoch > 0 and delta_label < tol:
                 print(f'Converged at epoch {epoch}: delta {delta_label:.4f} < {tol}')
                 break
 
-        # Train for one epoch with current 'p'
-        # Target Y is a list: [p, raw_counts] matching the model outputs
-        history = model.fit(
-            x={'count': adata.X, 'size_factors': adata.obs.size_factors.values},
-            y=[p, adata.raw.X if use_raw_as_output else adata.X],
-            epochs=1,
-            batch_size=batch_size,
-            validation_split=0.0, 
-            shuffle=True,
-            verbose=verbose,
-            **kwds
-        )
+        # Manual Batching
+        indices = np.arange(num_samples)
+        np.random.shuffle(indices)
+        for i in range(0, num_samples, batch_size):
+            batch_idx = indices[i:i+batch_size]
+            x_c = adata.X[batch_idx]
+            x_s = adata.obs.size_factors.values[batch_idx]
+            y_p_batch = p[batch_idx]
+            y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-        # Note: 'total_loss' is Total_L, 'clustering_loss' is Lc, 'slice_loss' (or similar) is Lr
-        h = history.history
-        keys = list(h.keys()) 
-        l_total = h.get('loss', [0])[-1]
-        l_clust = h.get('clustering_loss', h.get(keys[1], [0]))[-1]
-        l_recon = h.get('zinb_loss', h.get(keys[2], [0]))[-1]
-        losses = [l_total, l_clust, l_recon]
+            loss_vals = train_step(x_c, x_s, y_p_batch, y_r)
 
-        if save_weights and output_dir and epoch % save_interval == 0:
-            ckpt_path = os.path.join(output_dir, f'dec_weights_epoch_{epoch}.weights.h5')
-            model.save_weights(ckpt_path)
-            if verbose: print(f"Checkpoint saved: {ckpt_path}")
+        if verbose:
+            print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_kl: {loss_vals[1]:.4f}, "
+                  f"L_zinb: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
 
-    # 5. Save final weights
-    if save_weights and output_dir:
-        final_path = os.path.join(output_dir, 'dec_model_final.weights.h5')
-        model.save_weights(final_path)
-        print(f"Final model saved to: {final_path}")
+    end_total_train = time.time()
+    print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
 
     return y_pred
 
 def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
                    optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
-                   batch_size=256, tol=1e-3, loss_weights=[1, 1, 0], use_raw_as_output=True,  
+                   batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-                   pretrain_learning_rate=0.01, res_ramp=[0.1, 0.5, 1.0], **kwds):
+                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), **kwds):
    
     model = network.model
-    ae_loss = network.loss 
+    ae_loss_fn = network.loss 
+    clustering_layer = model.get_layer(name='clustering')
     
     # 1. Pretrain 
     print("...Pretraining Autoencoder...")
+    start_pretrain = time.time()
     network.model = network.zinb_ae 
     ae_train(adata, network, epochs=pretrain_epochs, optimizer=pretrain_optimizer,
              learning_rate=pretrain_learning_rate, verbose=verbose)
     network.model = model
+    print(f"Pretraining complete in {time.time() - start_pretrain:.2f}s")
 
     # 2. k-mean for centroid initialization
     print("...Initializing cluster centers with k-means...")
@@ -299,75 +225,84 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                                            'size_factors': adata.obs.size_factors.values})
     y_pred = kmeans.fit_predict(latent_feat)
     y_pred_last = np.copy(y_pred)
-    model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
+    clustering_layer.set_weights([kmeans.cluster_centers_])
 
-    # 3. Iterative ramping loop in DEC
-    print("...Training for clustering...")
+    # 3. Setup Optimizer and Manual Train Step
+    opt_dec = optimizers.get(optimizer)
+    
+    @tf.function
+    def train_step(x_counts, x_sf, y_p, y_raw, current_weights):
+        with tf.GradientTape() as tape:
+            z = network.encoder({'count': x_counts, 'size_factors': x_sf})
+            q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
+            mu = clustering_layer.weights[0]
+
+            l_zinb = ae_loss_fn(y_raw, zinb_out)
+            l_kl = keras.losses.KLDivergence()(y_p, q)
+            l_sk = soft_kmeans_loss(z, mu)
+
+            # Apply the dynamic weights from the ramping phase
+            total_loss = (current_weights[0] * l_zinb) + \
+                         (current_weights[1] * l_kl) + \
+                         (current_weights[2] * l_sk)
+
+        grads = tape.gradient(total_loss, model.trainable_variables)
+        opt_dec.apply_gradients(zip(grads, model.trainable_variables))
+        return total_loss, l_zinb, l_kl, l_sk
+
+    # 4. Iterative Ramping Loop
+    print("...Training for clustering with Resolution Ramping...")
+    start_total_train = time.time()
+    num_samples = adata.n_obs
+    loss_vals = [0, 0, 0, 0]
+
     for res_idx, current_res in enumerate(res_ramp):
-        print(f"\n>>> Iterative Ramping Phase {res_idx+1}: Resolution Scaling at {current_res}")
+        print(f"\n>>> Phase {res_idx+1}: Scaling Clustering/SoftK weights by {current_res}")
         
-        # Adjust active weights: Gradually increase importance of Clustering (Lc)
-        active_weights = [loss_weights[0], loss_weights[1] * current_res]
-
-        opt_dec = optimizers.get(optimizer)
-        opt_dec.learning_rate = learning_rate / (res_idx + 1) # Annealing learning rate
-        model.compile(loss=['kld', ae_loss], loss_weights=active_weights, optimizer=opt_dec)
-
-        losses = [0.0, 0.0, 0.0]
+        # Scale KL and SoftK weights by the current resolution factor
+        current_weights = [
+            loss_weights[0],             # ZINB stays constant
+            loss_weights[1] * current_res, # KL scales
+            loss_weights[2] * current_res  # SoftK scales
+        ]
         
-        # Standard DEC Loop within the current resolution stage
-        for epoch in range(epochs // len(res_ramp)):
+        # Anneal learning rate for each phase
+        opt_dec.learning_rate = learning_rate / (res_idx + 1)
+        
+        epochs_per_phase = epochs // len(res_ramp)
+
+        for epoch in range(epochs_per_phase):
             if epoch % update_interval == 0:
-                q, _ = model.predict({'count': adata.X, 
-                                      'size_factors': adata.obs.size_factors.values}, verbose=0)
-                
-                # DESC Benefit: Sharper Target Distribution
-                p = compute_target_distribution(q) 
+                q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+                p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
 
-                # --- Evaluation Block ---
                 if ground_truth is not None and ground_truth in adata.obs:
                     y_true = adata.obs[ground_truth].values
                     acc = np.round(cluster_acc(y_true, y_pred), 5)
                     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
-                    ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
-                    l_print = [np.round(l, 5) for l in losses]
-                    print(f'Res {current_res} | Epoch {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, '
-                          f'Total_L={l_print[0]}, Lc={l_print[1]}, Lr={l_print[2]}')
-                # -------------------------
+                    print(f'Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}')
 
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
                 y_pred_last = np.copy(y_pred)
-                
                 if epoch > 0 and delta_label < tol:
-                    print(f'Resolution {current_res}: delta {delta_label:.4f} < {tol}')
+                    print(f'Converged at resolution {current_res}')
                     break
 
-            history = model.fit(
-                x={'count': adata.X, 'size_factors': adata.obs.size_factors.values},
-                y=[p, adata.raw.X if use_raw_as_output else adata.X],
-                epochs=1,
-                batch_size=batch_size,
-                shuffle=True,
-                verbose=verbose,
-                **kwds
-            )
-            
-            # Note: 'total_loss' is Total_L, 'clustering_loss' is Lc, 'slice_loss' (or similar) is Lr
-            h = history.history
-            keys = list(h.keys()) 
-            l_total = h.get('loss', [0])[-1]
-            l_clust = h.get('clustering_loss', h.get(keys[1], [0]))[-1]
-            l_recon = h.get('zinb_loss', h.get(keys[2], [0]))[-1]
-            losses = [l_total, l_clust, l_recon]
+            # Batch Training
+            indices = np.arange(num_samples)
+            np.random.shuffle(indices)
+            for i in range(0, num_samples, batch_size):
+                batch_idx = indices[i:i+batch_size]
+                x_c = adata.X[batch_idx]
+                x_s = adata.obs.size_factors.values[batch_idx]
+                y_p_batch = p[batch_idx]
+                y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-            if save_weights and output_dir and epoch % save_interval == 0:
-                ckpt_path = os.path.join(output_dir, f'dec_weights_epoch_{epoch}.weights.h5')
-                model.save_weights(ckpt_path)
-                if verbose: print(f"Checkpoint saved: {ckpt_path}")
+                loss_vals = train_step(x_c, x_s, y_p_batch, y_r, current_weights)
 
-    # 5. Final Save
-    if save_weights and output_dir:
-        model.save_weights(os.path.join(output_dir, 'dec_model_final.weights.h5'))
+            if verbose:
+                print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, L_sk: {loss_vals[3]:.4f}")
 
+    print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
     return y_pred

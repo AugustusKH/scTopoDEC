@@ -20,6 +20,8 @@ from .train import ae_train, dec_train, ramp_dec_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
 from .metric import cluster_acc
 
+tf.keras.backend.clear_session()
+
 
 def scTopoDEC(adata,                        # single-cell args
         ae_type='dec',
@@ -32,7 +34,7 @@ def scTopoDEC(adata,                        # single-cell args
         scale=True,
         log1p=True,
         hidden_size=(256, 64, 32, 64, 256), # network args
-        loss_weights=[1, 1, 0],
+        loss_weights=(1, 1, 0, 0),
         noise_sd=0.,
         hidden_dropout=0.,
         batchnorm=True,
@@ -45,7 +47,7 @@ def scTopoDEC(adata,                        # single-cell args
         update_interval=10,
         tol=1e-3,
         ground_truth=None,
-        res_ramp=[0.1, 0.5, 1.0],
+        res_ramp=(0.1, 0.5, 1.0),
         ramp_mode=False,
         training_kwds={},
         pretrain_epochs=200,                # Pretrain args    
@@ -103,11 +105,12 @@ def scTopoDEC(adata,                        # single-cell args
         n_top_genes : int, optional (default: 2000)
             The number of top variable genes to keep if use_hvg is True. For datasets with 
             ~30,000 genes, 2,000 is the recommended benchmark for optimal clustering performance.
-        loss_weights : `list`, optional (default: [1, 1, 0])
+        loss_weights : `list`, optional (default: (1, 1, 0, 0))
             Weights for the joint loss function:
             - index 0: Reconstruction loss (ZINB/MSE).
             - index 1: Clustering loss (KLD).
-            - index 2: Topological loss (persistent Homology).
+            - index 2: Soft k-mean clustering loss.
+            - index 3: Topological loss (persistent Homology).
         alpha : `float`, optional (default: 1.0)
             Degrees of freedom for Student’s t-distribution in the clustering layer. 
             Must be positive to calculate soft assignments (q).
@@ -154,7 +157,7 @@ def scTopoDEC(adata,                        # single-cell args
             A key in `adata.obs` containing known cell-type labels. If provided, 
             the model will output Accuracy (ACC), Normalized Mutual Info (NMI), 
             and Adjusted Rand Index (ARI) during training to monitor performance.
-        res_ramp : `list`, optional (default: [0.1, 0.5, 1.0])
+        res_ramp : `list`, optional (default: (0.1, 0.5, 1.0))
             A list of scaling factors for the clustering loss weight. This implements 
             a "curriculum learning" strategy where the model first focuses on 
             reconstruction (low values) and gradually increases the pressure to 

@@ -97,3 +97,35 @@ class ZINB(NB):
 
         return _nan2inf(result)
 
+
+def soft_kmeans_loss(z, mu):
+    """
+    Calculate soft k-mean clustering loss.
+    # Arguments
+    z: Latent representations (batch_size, latent_dim)
+    mu: Cluster centroid (n_clusters, latent_dim)
+    # Return
+        loss scalar
+    """
+    # Calculate lambda prime
+    diff = ops.expand_dims(z, axis=1) - ops.expand_dims(mu, axis=0)
+    dist_sq = ops.sum(ops.square(diff), axis=-1)
+    lambda_prime = ops.exp(-dist_sq)
+    lambda_prime = lambda_prime / ops.sum(lambda_prime, axis=1, keepdims=True)
+    
+    # Calculate lambda 
+    lambda_ij = ops.square(lambda_prime)
+    lambda_ij = lambda_ij / ops.sum(lambda_ij, axis=1, keepdims=True)
+
+    # Calculate nu
+    nu_numerator = ops.matmul(ops.transpose(lambda_ij), z) # (clusters, batch) * (batch, dim) -> (clusters, dim)
+    nu_denominator = ops.expand_dims(ops.sum(lambda_ij, axis=0), axis=1) # (clusters, 1)
+    nu_j = nu_numerator / (nu_denominator + 1e-8) # (clusters, dim)
+
+    # Calculate Lsk
+    diff_to_nu = ops.expand_dims(z, axis=1) - ops.expand_dims(nu_j, axis=0)
+    dist_sq_to_nu = ops.sum(ops.square(diff_to_nu), axis=-1)
+    batch_size = ops.cast(ops.shape(z)[0], "float32")   
+    loss_sk = ops.sum(lambda_ij * dist_sq_to_nu) / batch_size
+
+    return loss_sk
