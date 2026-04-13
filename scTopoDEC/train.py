@@ -140,7 +140,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
 
             l_zinb = ae_loss_fn(y_raw, zinb_out)
-            l_kl = keras.losses.KLDivergence(y_p, q)
+            l_kl = keras.losses.KLDivergence()(y_p, q)
             l_sk = soft_kmeans_loss(z, mu)
 
             total_loss = (loss_weights[0] * l_zinb) + \
