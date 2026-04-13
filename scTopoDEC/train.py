@@ -181,6 +181,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
     # 3. Setup Optimizer
     opt_dec = optimizers.get(optimizer)
+    opt_dec.build(model.trainable_variables)
     opt_dec.learning_rate = learning_rate
 
     # 4. Iterative Training Loop
@@ -310,6 +311,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
 
     # 3. Setup Optimizer and Manual Train Step
     opt_dec = optimizers.get(optimizer)
+    opt_dec.learning_rate = learning_rate
+    opt_dec.build(model.trainable_variables)
 
     # 4. Iterative Ramping Loop
     print("\n...Training for clustering with Resolution Ramping...")
