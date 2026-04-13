@@ -243,6 +243,10 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
             q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
             mu = clustering_layer.weights[0]
 
+            # Clip Q and P to avoid log(0)
+            q = tf.clip_by_value(q, 1e-10, 1.0)
+            y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
+
             l_zinb = ae_loss_fn(y_raw, zinb_out)
             l_kl = keras.losses.KLDivergence()(y_p, q)
             l_sk = soft_kmeans_loss(z, mu)
@@ -252,7 +256,10 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                          (current_weights[1] * l_kl) + \
                          (current_weights[2] * l_sk)
 
+        tf.debugging.assert_all_finite(total_loss, "Loss became NaN before gradients")
+
         grads = tape.gradient(total_loss, model.trainable_variables)
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
         opt_dec.apply_gradients(zip(grads, model.trainable_variables))
         return total_loss, l_zinb, l_kl, l_sk
 
@@ -267,7 +274,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
         
         # Scale KL and SoftK weights by the current resolution factor
         current_weights = [
-            loss_weights[0],             # ZINB stays constant
+            loss_weights[0],               # ZINB stays constant
             loss_weights[1] * current_res, # KL scales
             loss_weights[2] * current_res  # SoftK scales
         ]
@@ -283,12 +290,18 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
 
+                # --- Evaluation Block ---
                 if ground_truth is not None and ground_truth in adata.obs:
                     y_true = adata.obs[ground_truth].values
                     acc = np.round(cluster_acc(y_true, y_pred), 5)
                     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
-                    print(f'Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}')
+                    ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
+                    l_print = [np.round(l, 5) for l in loss_vals]
+                    print(f'Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, '
+                          f'Total_L={l_print[0]}, L_zinb={l_print[1]}, L_kl={l_print[2]}, L_sk={l_print[3]}')
+                # -------------------------
 
+                # Convergence Check
                 delta_label = np.sum(y_pred != y_pred_last).astype(np.float32) / y_pred.shape[0]
                 y_pred_last = np.copy(y_pred)
                 if epoch > 0 and delta_label < tol:
