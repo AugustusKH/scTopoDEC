@@ -110,16 +110,18 @@ def soft_kmeans_loss(z, mu):
     # Calculate lambda prime
     diff = ops.expand_dims(z, axis=1) - ops.expand_dims(mu, axis=0)
     dist_sq = ops.sum(ops.square(diff), axis=-1)
-    lambda_prime = ops.exp(-dist_sq)
+    dist_min = ops.reshape(ops.reduce_min(dist_sq, axis=1), [-1, 1])
+    temp_dist = dist_sq - dist_min # Subtract minimum distance to prevent underflow
+    lambda_prime = ops.exp(-temp_dist) + 1e-12
     lambda_prime = lambda_prime / ops.sum(lambda_prime, axis=1, keepdims=True)
     
     # Calculate lambda 
-    lambda_ij = ops.square(lambda_prime)
-    lambda_ij = lambda_ij / ops.sum(lambda_ij, axis=1, keepdims=True)
+    lambda_ij = ops.square(lambda_prime) + 1e-12
+    lambda_ij = lambda_ij / (ops.sum(lambda_ij, axis=1, keepdims=True) + 1e-12)
 
     # Calculate nu
     nu_numerator = ops.matmul(ops.transpose(lambda_ij), z) # (clusters, batch) * (batch, dim) -> (clusters, dim)
-    nu_denominator = ops.expand_dims(ops.sum(lambda_ij, axis=0), axis=1) # (clusters, 1)
+    nu_denominator = ops.expand_dims(ops.sum(lambda_ij, axis=0), axis=1) + 1e-12 # (clusters, 1)
     nu_j = nu_numerator / (nu_denominator + 1e-8) # (clusters, dim)
 
     # Calculate Lsk
