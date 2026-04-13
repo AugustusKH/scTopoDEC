@@ -197,8 +197,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             loss_vals = train_step(x_c, x_s, y_p_batch, y_r)
 
         if verbose:
-            print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_kl: {loss_vals[1]:.4f}, "
-                  f"L_zinb: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
+            print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
+                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
 
     end_total_train = time.time()
     print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
@@ -321,7 +321,9 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 loss_vals = train_step(x_c, x_s, y_p_batch, y_r, current_weights)
 
             if verbose:
-                print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, L_sk: {loss_vals[3]:.4f}")
+                print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, "
+                      f"L_zinb: {loss_vals[1]:.4f}, L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
 
     print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
+    
     return y_pred
