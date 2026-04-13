@@ -14,6 +14,49 @@ from .loss import soft_kmeans_loss
 from .metric import cluster_acc
 
 
+@tf.function
+def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
+               ae_loss_fn, opt_dec, loss_weights, topo_loss_fn=None):
+    """
+    Executes a single training iteration (batch update) for scTopoDEC.
+    
+    This function calculates a joint loss across reconstruction, clustering, 
+    and optional topological manifold preservation.
+    """
+    with tf.GradientTape() as tape:
+        z = network.encoder({'count': x_counts, 'size_factors': x_sf})
+        q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
+        mu = clustering_layer.weights[0] 
+        
+        # Stability clipping
+        q = tf.clip_by_value(q, 1e-10, 1.0)
+        y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
+
+        # Base losses
+        l_zinb = ae_loss_fn(y_raw, zinb_out)
+        l_kl = keras.losses.KLDivergence()(y_p, q)
+        l_sk = soft_kmeans_loss(z, mu)
+
+        # Optional topological loss
+        l_topo = tf.constant(0.0, dtype=tf.float32)
+        if topo_loss_fn is not None and loss_weights[3] > 0:
+            l_topo = topo_loss_fn(z) 
+
+        # Total loss calculation 
+        total_loss = (loss_weights[0] * l_zinb) + \
+                     (loss_weights[1] * l_kl) + \
+                     (loss_weights[2] * l_sk) + \
+                     (loss_weights[3] * l_topo)
+
+    # Gradient Descent
+    tf.debugging.assert_all_finite(total_loss, "Loss became NaN")
+    grads = tape.gradient(total_loss, model.trainable_variables)
+    grads, _ = tf.clip_by_global_norm(grads, 5.0)
+    opt_dec.apply_gradients(zip(grads, model.trainable_variables))
+    
+    return total_loss, l_zinb, l_kl, l_sk, l_topo
+
+
 def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.001,
           initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
           use_raw_as_output=True, early_stop=15, batch_size=256, clip_grad=1.0, save_weights=True,
@@ -93,7 +136,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
-              pretrain_optimizer='adam', pretrain_learning_rate=0.01, **kwds):
+              pretrain_optimizer='adam', pretrain_learning_rate=0.01, topo_loss_fn=None,
+              **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -127,46 +171,19 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     opt_dec = optimizers.get(optimizer)
     opt_dec.learning_rate = learning_rate
 
-    @tf.function
-    def train_step(x_counts, x_sf, y_p, y_raw):
-        with tf.GradientTape() as tape:
-            z = network.encoder({'count': x_counts, 'size_factors': x_sf})
-            q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
-            mu = clustering_layer.weights[0] # Cluster centers
-            
-            # Clip Q and P to avoid log(0)
-            q = tf.clip_by_value(q, 1e-10, 1.0)
-            y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
-
-            l_zinb = ae_loss_fn(y_raw, zinb_out)
-            l_kl = keras.losses.KLDivergence()(y_p, q)
-            l_sk = soft_kmeans_loss(z, mu)
-
-            total_loss = (loss_weights[0] * l_zinb) + \
-                         (loss_weights[1] * l_kl) + \
-                         (loss_weights[2] * l_sk)
-
-        tf.debugging.assert_all_finite(total_loss, "Loss became NaN before gradients")
-
-        grads = tape.gradient(total_loss, model.trainable_variables)
-        grads, _ = tf.clip_by_global_norm(grads, 5.0)
-        opt_dec.apply_gradients(zip(grads, model.trainable_variables))
-        return total_loss, l_zinb, l_kl, l_sk
-
     # 4. Iterative Training Loop
     print("\n...Training for clustering...")
     start_total_train = time.time()
 
     num_samples = adata.n_obs
-    loss_vals = [0, 0, 0, 0] 
+    loss_vals = [0, 0, 0, 0, 0] 
     
     # Define ReduceLROnPlateau and EarlyStopping variables
     best_loss = np.inf
-    wait = 0
-    reduce_lr_patience = 10  
+    best_weights = None
+    wait, es_wait = 0, 0
+    reduce_lr_patience, early_stop_patience = 10, 15
     factor = 0.1
-    early_stop_patience = 15
-    es_wait = 0
 
     for epoch in range(epochs):
         if epoch % update_interval == 0:
@@ -202,7 +219,16 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-            loss_vals = train_step(x_c, x_s, y_p_batch, y_r)
+            loss_vals = train_step(
+                x_c, x_s, y_p_batch, y_r, 
+                network=network, 
+                model=model, 
+                clustering_layer=clustering_layer,
+                ae_loss_fn=ae_loss_fn, 
+                opt_dec=opt_dec, 
+                loss_weights=loss_weights,
+                topo_loss_fn=topo_loss_fn
+            )
 
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
@@ -214,8 +240,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         if current_loss < best_loss - tol:
             best_loss = current_loss
             best_weights = [tf.identity(w) for w in model.get_weights()]
-            wait = 0
-            es_wait = 0
+            wait, es_wait = 0, 0
         else:
             wait += 1
             es_wait += 1
@@ -224,6 +249,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 old_lr = float(opt_dec.learning_rate)
                 new_lr = old_lr * factor
                 opt_dec.learning_rate = new_lr
+
                 if verbose:
                     print(f"\nEpoch {epoch}: ReduceLROnPlateau reducing learning rate to {new_lr:.6f}")
                 wait = 0
@@ -234,8 +260,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
     # --- RESTORE BEST WEIGHTS ---
     if best_weights is not None:
-        if verbose:
-            print("Restoring best weights from training...")
+        if verbose: print("Restoring best weights from training...")
         model.set_weights(best_weights)
 
     end_total_train = time.time()
