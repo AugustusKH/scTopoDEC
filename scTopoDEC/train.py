@@ -134,7 +134,10 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             z = network.encoder({'count': x_counts, 'size_factors': x_sf})
             q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
             mu = clustering_layer.weights[0] # Cluster centers
+            
+            # Clip Q and P to avoid log(0)
             q = tf.clip_by_value(q, 1e-10, 1.0)
+            y_p = tf.clip_by_value(y_p, 1e-7, 1.0)
 
             l_zinb = ae_loss_fn(y_raw, zinb_out)
             l_kl = keras.losses.KLDivergence()(y_p, q)
@@ -144,6 +147,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                          (loss_weights[1] * l_kl) + \
                          (loss_weights[2] * l_sk)
 
+        tf.debugging.assert_all_finite(total_loss, "Loss became NaN before gradients")
+        
         grads = tape.gradient(total_loss, model.trainable_variables)
         grads, _ = tf.clip_by_global_norm(grads, 5.0)
         opt_dec.apply_gradients(zip(grads, model.trainable_variables))
