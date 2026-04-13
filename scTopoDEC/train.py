@@ -134,6 +134,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             z = network.encoder({'count': x_counts, 'size_factors': x_sf})
             q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
             mu = clustering_layer.weights[0] # Cluster centers
+            q = tf.clip_by_value(q, 1e-10, 1.0)
 
             l_zinb = ae_loss_fn(y_raw, zinb_out)
             l_kl = keras.losses.KLDivergence()(y_p, q)
@@ -144,6 +145,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                          (loss_weights[2] * l_sk)
 
         grads = tape.gradient(total_loss, model.trainable_variables)
+        grads, _ = tf.clip_by_global_norm(grads, 5.0)
         opt_dec.apply_gradients(zip(grads, model.trainable_variables))
         return total_loss, l_zinb, l_kl, l_sk
 
@@ -183,9 +185,9 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         np.random.shuffle(indices)
         for i in range(0, num_samples, batch_size):
             batch_idx = indices[i:i+batch_size]
-            x_c = adata.X[batch_idx]
+            x_c = tf.cast(adata.X[batch_idx], tf.float32)
             x_s = adata.obs.size_factors.values[batch_idx]
-            y_p_batch = p[batch_idx]
+            y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
             loss_vals = train_step(x_c, x_s, y_p_batch, y_r)
