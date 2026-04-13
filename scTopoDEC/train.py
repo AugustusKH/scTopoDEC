@@ -159,6 +159,14 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
 
     num_samples = adata.n_obs
     loss_vals = [0, 0, 0, 0] 
+    
+    # Define ReduceLROnPlateau and EarlyStopping variables
+    best_loss = np.inf
+    wait = 0
+    reduce_lr_patience = 10  
+    factor = 0.1
+    early_stop_patience = 15
+    es_wait = 0
 
     for epoch in range(epochs):
         if epoch % update_interval == 0:
@@ -199,6 +207,36 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
                   f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}")
+            
+        current_loss = loss_vals[0]
+
+        # --- Logic for Best Weights, ReduceLR, and EarlyStopping ---
+        if current_loss < best_loss - tol:
+            best_loss = current_loss
+            best_weights = [tf.identity(w) for w in model.get_weights()]
+            wait = 0
+            es_wait = 0
+        else:
+            wait += 1
+            es_wait += 1
+            
+            if wait >= reduce_lr_patience:
+                old_lr = float(opt_dec.learning_rate)
+                new_lr = old_lr * factor
+                opt_dec.learning_rate = new_lr
+                if verbose:
+                    print(f"\nEpoch {epoch}: ReduceLROnPlateau reducing learning rate to {new_lr:.6f}")
+                wait = 0
+
+            if es_wait >= early_stop_patience:
+                print(f"Epoch {epoch}: Early stopping triggered.")
+                break
+
+    # --- RESTORE BEST WEIGHTS ---
+    if best_weights is not None:
+        if verbose:
+            print("Restoring best weights from training...")
+        model.set_weights(best_weights)
 
     end_total_train = time.time()
     print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
