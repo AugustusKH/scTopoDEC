@@ -39,7 +39,11 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
         # Base losses
         l_zinb = ae_loss_fn(y_raw, zinb_out)
         l_kl = keras.losses.KLDivergence()(y_p, q)
-        l_sk = soft_kmeans_loss(z, mu)
+
+        # Optional soft k-mean loss
+        l_sk = tf.constant(0.0, dtype=tf.float32)
+        if loss_weights[2] > 0:
+            l_sk = soft_kmeans_loss(z, mu)
 
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
