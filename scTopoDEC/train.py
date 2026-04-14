@@ -252,7 +252,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         current_loss = loss_vals[0]
 
         # --- Logic for Best Weights, ReduceLR, and EarlyStopping ---
-        if current_loss < best_loss - tol:
+        if current_loss < best_loss:
             best_loss = current_loss
             best_weights = [tf.identity(w) for w in model.get_weights()]
             wait, es_wait = 0, 0
