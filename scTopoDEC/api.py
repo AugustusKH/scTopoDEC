@@ -49,6 +49,7 @@ def scTopoDEC(adata,                        # single-cell args
         ground_truth=None,
         res_ramp=(0.1, 0.5, 1.0),
         ramp_mode=False,
+        cluster_early_stop=False,
         training_kwds={},
         pretrain_epochs=200,                # Pretrain args    
         pretrain_optimizer='adam',
@@ -168,6 +169,8 @@ def scTopoDEC(adata,                        # single-cell args
             enabled, the total `epochs` are divided across the stages defined 
             in `res_ramp`, and the learning rate is annealed at each stage to 
             ensure stable convergence.
+        cluster_early_stop : `bool`, optional (default: False)
+            If True, enable patience for early stopping in clustering training step. 
         training_kwds : `dict`, optional
             Additional arguments passed to the training function, i.e. dec_train().
         pretrain_epochs : `int`, optional (default: 200)
@@ -303,6 +306,7 @@ def scTopoDEC(adata,                        # single-cell args
                            update_interval=update_interval,
                            tol=tol,
                            early_stop_patience=early_stop,
+                           cluster_early_stop=cluster_early_stop,
                            ground_truth=ground_truth,
                            res_ramp=res_ramp,
                            verbose=verbose,
@@ -318,6 +322,7 @@ def scTopoDEC(adata,                        # single-cell args
                       tol=tol,
                       reduce_lr_patience=reduce_lr,
                       early_stop_patience=early_stop,
+                      cluster_early_stop=cluster_early_stop,
                       ground_truth=ground_truth,
                       verbose=verbose,
                       **training_kwds)

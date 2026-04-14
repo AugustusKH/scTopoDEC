@@ -266,7 +266,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 opt_dec.learning_rate = new_lr
 
                 if verbose:
-                    print(f"\nEpoch {epoch}: ReduceLROnPlateau reducing learning rate to {new_lr:.6f}")
+                    print(f"\nEpoch {epoch}: ReduceLROnPlateau reducing learning rate to {new_lr:.3e}")
                 wait = 0
 
             if es_wait >= early_stop_patience and cluster_early_stop:
@@ -289,7 +289,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                    batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
                    pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), topo_loss_fn=None, 
-                   early_stop_patience=15, **kwds):
+                   early_stop_patience=15, cluster_early_stop=False, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -400,7 +400,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 es_wait = 0
             else:
                 es_wait += 1
-                if es_wait >= early_stop_patience:
+                if es_wait >= early_stop_patience and cluster_early_stop:
                     print(f"Phase {current_res} early stopping at epoch {epoch}")
                     break
 
