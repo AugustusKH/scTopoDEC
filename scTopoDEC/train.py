@@ -153,7 +153,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
               pretrain_optimizer='adam', pretrain_learning_rate=0.01, topo_loss_fn=None,
-              reduce_lr_patience=10, early_stop_patience=15, **kwds):
+              reduce_lr_patience=10, early_stop_patience=15, cluster_early_stop=False, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -252,7 +252,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         current_loss = loss_vals[0]
 
         # --- Logic for Best Weights, ReduceLR, and EarlyStopping ---
-        if current_loss < best_loss:
+        if current_loss < best_loss - tol:
             best_loss = current_loss
             best_weights = [tf.identity(w) for w in model.get_weights()]
             wait, es_wait = 0, 0
@@ -269,7 +269,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                     print(f"\nEpoch {epoch}: ReduceLROnPlateau reducing learning rate to {new_lr:.6f}")
                 wait = 0
 
-            if es_wait >= early_stop_patience:
+            if es_wait >= early_stop_patience and cluster_early_stop:
                 print(f"Epoch {epoch}: Early stopping triggered.")
                 break
 
