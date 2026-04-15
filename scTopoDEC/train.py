@@ -4,8 +4,11 @@ import numpy as np
 import tensorflow as tf
 import keras
 from keras import layers, models, ops, optimizers
+from tqdm import tqdm
 from sklearn.cluster import KMeans
 from sklearn import metrics
+import gudhi as gd
+from gudhi.tensorflow import RipsLayer
 
 from . import io
 from .utils import compute_target_distribution
@@ -20,9 +23,7 @@ from .metric import cluster_acc
 
 @tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_loss_fn='topo_loss',
-               homology_dim=1, maximum_edge_length=2., p=2, bandwidth=0.1, 
-               resolution=[20, 20]):
+               ae_loss_fn, opt_dec, loss_weights, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -50,18 +51,7 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
         if loss_weights[3] > 0:
-            assert topo_loss_fn in ('pd_loss', 'pi_loss'), 'Unknown topological loss' 
-            if topo_loss_fn == 'pd_loss':
-                l_topo = topo_loss(x_counts, z, 
-                                   homology_dim=homology_dim, 
-                                   maximum_edge_length=maximum_edge_length, 
-                                   p=p)
-            else:
-                l_topo = topo_pi_loss(x_counts, z, 
-                                      homology_dim=homology_dim, 
-                                      maximum_edge_length=maximum_edge_length,
-                                      bandwidth=bandwidth, 
-                                      resolution=resolution)
+            l_topo = topo_loss(x_counts, z, rips_layer)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -166,9 +156,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
               pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
-              early_stop_patience=15, cluster_early_stop=False,  topo_loss_fn='topo_loss',
-              homology_dim=1, maximum_edge_length=2., p_order=2, bandwidth=0.1, resolution=[20, 20], 
-              **kwds):
+              early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
+              maximum_edge_length=2., **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -216,7 +205,14 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     wait, es_wait = 0, 0
     factor = 0.1
 
-    for epoch in range(epochs):
+    # Contruct the RipsLayer
+    if loss_weights[3] > 0:
+        rips_layer = RipsLayer(
+            maximum_edge_length=maximum_edge_length, 
+            homology_dimensions=[homology_dim]
+            )
+
+    for epoch in tqdm(range(epochs), desc="Training DEC", unit="epoch"):
         if epoch % update_interval == 0:
             q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
             p = compute_target_distribution(q)
@@ -257,12 +253,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 ae_loss_fn=ae_loss_fn, 
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
-                topo_loss_fn=topo_loss_fn,
-                homology_dim=homology_dim, 
-                maximum_edge_length=maximum_edge_length, 
-                p=p_order,
-                bandwidth=bandwidth, 
-                resolution=resolution
+                rips_layer=rips_layer
             )
 
         if verbose:

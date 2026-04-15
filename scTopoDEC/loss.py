@@ -4,9 +4,9 @@ import keras
 from keras import ops
 
 from .utils import density_scale
-import gudhi.tensorflow.rips_layer as rips
-from gudhi.tensorflow.pers_dist_layer import WassersteinDistance
-from gudhi.tensorflow.pers_img_layer import PersistenceImage
+import gudhi as gd
+from gudhi.tensorflow import RipsLayer
+
 
 
 def _nan2zero(x):
@@ -137,95 +137,28 @@ def soft_kmeans_loss(z, mu):
 
     return loss_sk
 
-def topo_loss(x, z, homology_dim=1, maximum_edge_length=2., p=2):
+
+def topo_loss(x, z, rips_layer):
     """
-    Calculate topological loss between two different spaces using differentiable 
-    Wasserstein distance on persistence diagrams.
+    Calculate topological loss between two different spaces using 
+    the persistence maximization logic to a manifold preservation loss.
 
     # Arguments:
     x: Input space (batch_size, feature_size). High-dimensional gene expression data.
     z: Latent space (batch_size, latent_dim). Low-dimensional manifold embedding.
-    
-    homology_dim: The Betti number/dimension to calculate. 
-                  - 0: Connected components (clusters).
-                  - 1: Cycles/loops (trajectories/branches).
-                  - 2: Voids/spheres (globular structures).
-                  
-    maximum_edge_length: The filtration cutoff. Limits the distance at which 
-                         points are connected. Prevents OOM errors by ignoring 
-                         very long-distance edges.
-                         
-    p: The order of the Wasserstein distance (Lp norm). 
-       - p=1: Earth Mover's Distance (linear penalty).
-       - p=2: Standard Euclidean Wasserstein (smooth gradients).
-       - Higher p: Approximates Bottleneck distance (focuses on the largest error).
+    rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
     """
-    # Setup Rips layers for both spaces
-    rips_x = rips.RipsPersistence(homology_dimensions=[homology_dim], 
-                                  maximum_edge_length=maximum_edge_length)
-    rips_z = rips.RipsPersistence(homology_dimensions=[homology_dim], 
-                                  maximum_edge_length=maximum_edge_length)
-    
-    # Sacle the space
+    # Scale the spaces
     x_scaled = density_scale(x)
     z_scaled = density_scale(z)
 
     # Get persistent diagrams
-    diag_x = rips_x(x_scaled)[0]
-    diag_z = rips_z(z_scaled)[0]
+    dgm_x = rips_layer.call(x_scaled)[0][0]
+    dgm_z = rips_layer.call(z_scaled)[0][0]
 
-    # Add a small dummy in case of batch is very homogenous
-    if tf.shape(diag_x)[0] == 0:
-        diag_x = tf.zeros((1, 2))
-    if tf.shape(diag_z)[0] == 0:
-        diag_z = tf.zeros((1, 2))
-
-    # Calculate differentiable Wasserstein distane 
-    pdgm_dist = WassersteinDistance(order=p)
-    loss = pdgm_dist([diag_x, diag_z])
-
-    return loss
-
-
-def topo_pi_loss(x, z, homology_dim=1, maximum_edge_length=2., bandwidth=0.1, resolution=[20, 20]):
-    """
-    Calculate topological loss using Persistence Images (PI) and mean square error (MSE).
+    # Apply squared persistence (persistence = death - birth)
+    pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
+    pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
+    loss = tf.reduce_mean(tf.square(pers_x - pers_z))
     
-    # Arguments:
-    x: Input space (batch_size, feature_size). High-dimensional gene expression data.
-    z: Latent space (batch_size, latent_dim). Low-dimensional manifold embedding.
-    
-    homology_dim: The Betti number/dimension to calculate. 
-                  - 0: Connected components (clusters).
-                  - 1: Cycles/loops (trajectories/branches).
-                  - 2: Voids/spheres (globular structures).
-                  
-    maximum_edge_length: The filtration cutoff. Limits the distance at which 
-                         points are connected. Prevents OOM errors by ignoring 
-                         very long-distance edges.
-
-    bandwidth: The standard deviation of the Gaussian kernels used to spread 
-               the persistence of each point across the image pixels.
-    resolution: The [rows, columns] of the resulting persistence image.
-    """
-    # Setup Rips layers for both spaces
-    rips_x = rips.RipsPersistence(homology_dimensions=[homology_dim], 
-                                  maximum_edge_length=maximum_edge_length)
-    rips_z = rips.RipsPersistence(homology_dimensions=[homology_dim], 
-                                  maximum_edge_length=maximum_edge_length)
-    
-    # Sacle the space
-    x_scaled = scale_by_density(x)
-    z_scaled = scale_by_density(z)
-
-    # Get persistent diagrams
-    diag_x = rips_x(x_scaled)[0]
-    diag_z = rips_z(z_scaled)[0]
-
-    # Construct PIs and calculate MSE
-    imager = PersistenceImage(bandwidth=bandwidth, resolution=resolution)
-    pi_x = imager(diag_x)
-    pi_z = imager(diag_z)
-    loss = tf.reduce_mean(tf.square(pi_x - pi_z))
-
     return loss
