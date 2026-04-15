@@ -156,9 +156,22 @@ def topo_loss(x, z, rips_layer):
     dgm_x = rips_layer.call(x_scaled)[0][0]
     dgm_z = rips_layer.call(z_scaled)[0][0]
 
-    # Apply squared persistence (persistence = death - birth)
+    # Calculate persistence (death - birth)
     pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
     pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
-    loss = tf.reduce_mean(tf.square(pers_x - pers_z))
+
+    # Dynamic padding to match shapes
+    n_x = tf.shape(pers_x)[0]
+    n_z = tf.shape(pers_z)[0]
+    max_features = tf.reduce_max([n_x, n_z])
+    pers_x_padded = tf.pad(pers_x, [[0, max_features - n_x]])
+    pers_z_padded = tf.pad(pers_z, [[0, max_features - n_z]])
+
+    # Sort vectors descending to align the most prominent features
+    pers_x_sorted = tf.sort(pers_x_padded, direction='DESCENDING')
+    pers_z_sorted = tf.sort(pers_z_padded, direction='DESCENDING')
+
+    # Calculate MSE on aligned vectors
+    loss = tf.reduce_mean(tf.square(pers_x_sorted - pers_z_sorted)) + 1e-9
 
     return loss
