@@ -301,11 +301,13 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                    batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
                    pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), topo_loss_fn=None, 
-                   early_stop_patience=15, cluster_early_stop=False, **kwds):
+                   early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
+                   maximum_edge_length=2., **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
     clustering_layer = model.get_layer(name='clustering')
+    rips_layer = None
     
     # 1. Pretrain 
     print("\n...Pretraining Autoencoder...")
@@ -329,6 +331,13 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
     opt_dec = optimizers.get(optimizer)
     opt_dec.learning_rate = learning_rate
     opt_dec.build(model.trainable_variables)
+
+    # Contruct the RipsLayer
+    if loss_weights[3] > 0:
+        rips_layer = RipsLayer(
+            maximum_edge_length=maximum_edge_length, 
+            homology_dimensions=[homology_dim]
+            )
 
     # 4. Iterative Ramping Loop
     print("\n...Training for clustering with Resolution Ramping...")
@@ -359,7 +368,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
         opt_dec.learning_rate = learning_rate / (res_idx + 1)
         epochs_per_phase = epochs // len(res_ramp)
 
-        for epoch in range(epochs_per_phase):
+        pbar = tqdm(range(epochs_per_phase), desc=f"Res {current_res}", unit="epoch")
+        for epoch in pbar: 
             if epoch % update_interval == 0:
                 q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
                 p = compute_target_distribution(q)
@@ -388,7 +398,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
             for i in range(0, num_samples, batch_size):
                 batch_idx = indices[i:i+batch_size]
                 x_c = tf.cast(adata.X[batch_idx], tf.float32)
-                x_s = adata.obs.size_factors.values[batch_idx]
+                x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
                 y_p_batch = tf.cast(p[batch_idx], tf.float32)
                 y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
@@ -400,7 +410,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     ae_loss_fn=ae_loss_fn, 
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
-                    topo_loss_fn=topo_loss_fn
+                    rips_layer=rips_layer
                 )
 
             current_loss = float(loss_vals[0])

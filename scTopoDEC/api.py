@@ -15,6 +15,12 @@ except ImportError:
     raise ImportError('scTopoDEC requires TensorFlow v2+. Please follow instructions'
                       ' at https://www.tensorflow.org/install/ to install.')
 
+try:
+    import gudhi as gd
+except ImportError:
+    raise ImportError('scTopoDEC requires GUDHI v3+. Please follow instructions'
+                      ' at https://gudhi.inria.fr/python/latest/installation.html to install.')
+
 from .io import read_dataset, normalize, read_genelist
 from .train import ae_train, dec_train, ramp_dec_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
@@ -65,6 +71,8 @@ def scTopoDEC(adata,                        # single-cell args
         return_info=False,
         copy=False,
         check_counts=True,
+        homology_dim=1,                     # Topology args
+        maximum_edge_length=2.
         ):
     """Single-cell topological deep embedded clustering (scTopoDEC) API.
         
@@ -205,6 +213,14 @@ def scTopoDEC(adata,                        # single-cell args
             If True, returns a modified copy of the AnnData object.
         check_counts : `bool`, optional (default: True)
             Verifies that the input data consists of unnormalized integer counts.
+        homology_dim : `int`, optional (default: 1)
+            The Betti number/dimension to calculate.
+            - 0: Connected components (clusters).
+            - 1: Cycles/loops (trajectories/branches).
+            - 2: Voids/spheres (globular structures).
+        maximum_edge_length : `float`, optional (default: 2.)
+            The filtration cutoff. Limits the distance at which points are connected. 
+            Prevents OOM errors by ignoring very long-distance edges.
 
         Outputs
         =======
@@ -309,6 +325,8 @@ def scTopoDEC(adata,                        # single-cell args
                            cluster_early_stop=cluster_early_stop,
                            ground_truth=ground_truth,
                            res_ramp=res_ramp,
+                           homology_dim=homology_dim, 
+                           maximum_edge_length=maximum_edge_length,
                            verbose=verbose,
                            **training_kwds)
         else:
@@ -323,6 +341,8 @@ def scTopoDEC(adata,                        # single-cell args
                       reduce_lr_patience=reduce_lr,
                       early_stop_patience=early_stop,
                       cluster_early_stop=cluster_early_stop,
+                      homology_dim=homology_dim, 
+                      maximum_edge_length=maximum_edge_length,
                       ground_truth=ground_truth,
                       verbose=verbose,
                       **training_kwds)
