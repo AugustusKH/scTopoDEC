@@ -160,6 +160,10 @@ def topo_loss(x, z, rips_layer):
     pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
     pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
 
+    # Add a single 0.0 feature to both to ensures the size is always >= 1
+    pers_x = tf.concat([pers_x, [0.0]], axis=0)
+    pers_z = tf.concat([pers_z, [0.0]], axis=0)
+
     # Dynamic padding to match shapes
     n_x = tf.shape(pers_x)[0]
     n_z = tf.shape(pers_z)[0]
