@@ -179,4 +179,4 @@ def topo_loss(x, z, rips_layer):
     # Add epsilon and calculate MSE
     loss = tf.reduce_mean(tf.square(pers_x - pers_z)) + 1e-9
     
-    return loss
+    return tf.cast(loss, tf.float32)
