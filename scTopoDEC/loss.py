@@ -139,56 +139,44 @@ def soft_kmeans_loss(z, mu):
 
 
 def topo_loss(x, z, rips_layer):
-    """
-    Calculate topological loss between two different spaces using 
-    the persistence maximization logic to a manifold preservation loss.
-
-    # Arguments:
-    x: Input space (batch_size, feature_size). High-dimensional gene expression data.
-    z: Latent space (batch_size, latent_dim). Low-dimensional manifold embedding.
-    rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
-    """
-    # Scale the spaces
     x_scaled = density_scale(x)
     z_scaled = density_scale(z)
 
-    # Internal wrapper to handle the GUDHI call
-    def compute_dgm(input_tensor):
-        dgms = rips_layer.call(input_tensor)
-        return dgms[0][0]
+    def compute_aligned_pers(x_in, z_in):
+        # 1. Compute raw diagrams in C++
+        dgm_x = rips_layer.call(x_in)[0][0]
+        dgm_z = rips_layer.call(z_in)[0][0]
+        
+        # 2. Compute persistence (death - birth) * 0.5
+        p_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
+        p_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
+        
+        # 3. Handle matching INSIDE the py_function
+        # This prevents the 'sort' gradient error
+        max_size = max(len(p_x), len(p_z), 1) # Ensure at least size 1
+        
+        # Pad with zeros (diagonal matching)
+        p_x_padded = np.pad(p_x, (0, max_size - len(p_x)))
+        p_z_padded = np.pad(p_z, (0, max_size - len(p_z)))
+        
+        # Sort (greedy matching)
+        p_x_final = np.sort(p_x_padded)[::-1]
+        p_z_final = np.sort(p_z_padded)[::-1]
+        
+        return p_x_final.astype(np.float32), p_z_final.astype(np.float32)
 
-    # Get persistent diagrams
-    dgm_x = tf.py_function(func=compute_dgm, inp=[x_scaled], Tout=tf.float32)
-    dgm_z = tf.py_function(func=compute_dgm, inp=[z_scaled], Tout=tf.float32)
+    # Call the wrapper. It returns two aligned vectors.
+    pers_x, pers_z = tf.py_function(
+        func=compute_aligned_pers, 
+        inp=[x_scaled, z_scaled], 
+        Tout=[tf.float32, tf.float32]
+    )
 
-    # Explicitly set shape to [Points, 2] 
-    dgm_x.set_shape([None, 2])
-    dgm_z.set_shape([None, 2])
-
-    # Apply squared persistence (persistence = death - birth)
-    pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
-    pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
-
-    # Ensure rank-1 for sorting
+    # Tell TensorFlow these are vectors (Rank 1)
     pers_x.set_shape([None])
     pers_z.set_shape([None])
 
-    # Standardize sizes as tf.py_function loses shape information
-    max_size = tf.reduce_max([tf.shape(pers_x)[0], tf.shape(pers_z)[0]])
-    pers_x = tf.pad(pers_x, [[0, max_size - tf.shape(pers_x)[0]]])
-    pers_z = tf.pad(pers_z, [[0, max_size - tf.shape(pers_z)[0]]])
-
-    # Restoring shape again after padding before sort
-    pers_x.set_shape([None])
-    pers_z.set_shape([None])
-    
-    pers_x = tf.sort(pers_x, direction='DESCENDING')
-    pers_z = tf.sort(pers_z, direction='DESCENDING')
-
-    # Add a tiny epsilon feature 
-    pers_x = tf.concat([pers_x, [1e-9]], axis=0)
-    pers_z = tf.concat([pers_z, [1e-9]], axis=0)
-
-    loss = tf.reduce_mean(tf.square(pers_x - pers_z))
+    # Add epsilon and calculate MSE
+    loss = tf.reduce_mean(tf.square(pers_x - pers_z)) + 1e-9
     
     return loss
