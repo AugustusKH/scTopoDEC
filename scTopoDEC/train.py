@@ -10,7 +10,7 @@ from sklearn import metrics
 from . import io
 from .utils import compute_target_distribution
 from .network import network_options
-from .loss import soft_kmeans_loss
+from .loss import soft_kmeans_loss, topo_loss, topo_pi_loss
 from .metric import cluster_acc
 
 
@@ -20,12 +20,14 @@ from .metric import cluster_acc
 
 @tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_loss_fn=None):
+               ae_loss_fn, opt_dec, loss_weights, topo_loss_fn='topo_loss',
+               homology_dim=1, maximum_edge_length=2., p=2, bandwidth=0.1, 
+               resolution=[20, 20]):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
     This function calculates a joint loss across reconstruction, clustering, 
-    and optional topological manifold preservation.
+    and topological manifold preservation.
     """
     with tf.GradientTape() as tape:
         z = network.encoder({'count': x_counts, 'size_factors': x_sf})
@@ -47,8 +49,19 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
 
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
-        if topo_loss_fn is not None and loss_weights[3] > 0:
-            l_topo = topo_loss_fn(z) 
+        if loss_weights[3] > 0:
+            assert topo_loss_fn in ('pd_loss', 'pi_loss'), 'Unknown topological loss' 
+            if topo_loss_fn == 'pd_loss':
+                l_topo = topo_loss(x_counts, z, 
+                                   homology_dim=homology_dim, 
+                                   maximum_edge_length=maximum_edge_length, 
+                                   p=p)
+            else:
+                l_topo = topo_pi_loss(x_counts, z, 
+                                      homology_dim=homology_dim, 
+                                      maximum_edge_length=maximum_edge_length,
+                                      bandwidth=bandwidth, 
+                                      resolution=resolution)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -152,8 +165,10 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
-              pretrain_optimizer='adam', pretrain_learning_rate=0.01, topo_loss_fn=None,
-              reduce_lr_patience=10, early_stop_patience=15, cluster_early_stop=False, **kwds):
+              pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
+              early_stop_patience=15, cluster_early_stop=False,  topo_loss_fn='topo_loss',
+              homology_dim=1, maximum_edge_length=2., p_order=2, bandwidth=0.1, resolution=[20, 20], 
+              **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -242,7 +257,12 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 ae_loss_fn=ae_loss_fn, 
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
-                topo_loss_fn=topo_loss_fn
+                topo_loss_fn=topo_loss_fn,
+                homology_dim=homology_dim, 
+                maximum_edge_length=maximum_edge_length, 
+                p=p_order,
+                bandwidth=bandwidth, 
+                resolution=resolution
             )
 
         if verbose:

@@ -1,5 +1,6 @@
 
 import numpy as np
+import tensorflow as tf
 from keras import ops
 
 def compute_target_distribution(q):
@@ -13,5 +14,20 @@ def compute_target_distribution(q):
     return np.nan_to_num(p)
 
 
+def density_scale(t):
+    """
+    Compute a sample of pairwise distance to find the scale.
+    This function is used to make two different spaces comparable when
+    calculate topological loss
+    """
+    # Subset of points to save memory
+    sample_size = tf.minimum(tf.shape(t)[0], 64)
+    sample = t[:sample_size]
 
+    # Compute pairwise Euclidean distances
+    r = tf.reduce_sum(sample*sample, 1, keepdims=True)
+    D = tf.sqrt(tf.maximum(r - 2*tf.matmul(sample, tf.transpose(sample)) + tf.transpose(r), 0.0))
 
+    avg_dist = tf.reduce_mean(D) + 1e-8
+    t_scaled = t / avg_dist
+    return t_scaled
