@@ -152,13 +152,31 @@ def topo_loss(x, z, rips_layer):
     x_scaled = density_scale(x)
     z_scaled = density_scale(z)
 
+    # Internal wrapper to handle the GUDHI call
+    def compute_dgm(input_tensor):
+        dgms = rips_layer.call(input_tensor)
+        return dgms[0][0]
+
     # Get persistent diagrams
-    dgm_x = rips_layer.call(x_scaled)[0][0]
-    dgm_z = rips_layer.call(z_scaled)[0][0]
+    dgm_x = tf.py_function(func=compute_dgm, inp=[x_scaled], Tout=tf.float32)
+    dgm_z = tf.py_function(func=compute_dgm, inp=[z_scaled], Tout=tf.float32)
+
+    # Explicitly set shape to [Points, 2] 
+    dgm_x.set_shape([None, 2])
+    dgm_z.set_shape([None, 2])
 
     # Apply squared persistence (persistence = death - birth)
     pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
     pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
+
+    # Standardize sizes as tf.py_function loses shape information
+    max_size = tf.reduce_max([tf.shape(pers_x)[0], tf.shape(pers_z)[0]])
+    pers_x = tf.pad(pers_x, [[0, max_size - tf.shape(pers_x)[0]]])
+    pers_z = tf.pad(pers_z, [[0, max_size - tf.shape(pers_z)[0]]])
+    
+    pers_x = tf.sort(pers_x, direction='DESCENDING')
+    pers_z = tf.sort(pers_z, direction='DESCENDING')
+
     loss = tf.reduce_mean(tf.square(pers_x - pers_z))
     
     return loss
