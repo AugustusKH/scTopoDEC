@@ -174,6 +174,7 @@ def topo_loss(x, z, rips_layer):
     pers_z_sorted = tf.sort(pers_z_padded, direction='DESCENDING')
 
     # Calculate MSE on aligned vectors
-    loss = tf.reduce_mean(tf.square(pers_x_sorted - pers_z_sorted)) + 1e-9
+    sq_diff = tf.square(pers_x_sorted - pers_z_sorted)
+    loss = tf.reduce_sum(sq_diff) / (tf.cast(max_features, tf.float32) + 1e-8)
 
     return loss
