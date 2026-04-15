@@ -38,11 +38,22 @@ def main():
     parser.add_argument('--maximum_edge_length', type=float, default=2.0, 
                         help='Filtration cutoff (prevents OOM on large datasets)')
     
-    # 5. Data Processing Args
+    # 5. Data processing args
     parser.add_argument('--n_top_genes', type=int, default=2000, help='Number of HVGs to use')
     parser.add_argument('--no_hvg', action='store_false', dest='use_hvg', help='Disable HVG selection')
     parser.set_defaults(use_hvg=True)
     parser.add_argument('--ground_truth', type=str, default=None, help='adata.obs key for true labels')
+
+    # 6. Hyperparameter optimization args 
+    parser.add_argument('--hyper', action='store_true', help='Run Hyperparameter Optimization mode')
+    parser.add_argument('--hypern', type=int, default=50, 
+                        help='Number of trials for Hyperopt')
+    parser.add_argument('--hyperepoch', type=int, default=100, 
+                        help='Number of epochs per trial during optimization')
+    parser.add_argument('--outputdir', type=str, default='./', 
+                        help='Directory to save hyperopt results')
+    parser.add_argument('--transpose', action='store_true', 
+                        help='Transpose input matrix (cells as columns)')
 
     args = parser.parse_args()
 
@@ -66,30 +77,36 @@ def main():
 
     # --- Run API (scTopoDEC) ---
     # We map the CLI args directly to your scTopoDEC function parameters
-    scTopoDEC(
-        adata,
-        ae_type=args.ae_type,
-        n_clusters=args.n_clusters,
-        use_hvg=args.use_hvg,
-        n_top_genes=args.n_top_genes,
-        hidden_size=hidden_size_obj,
-        loss_weights=loss_weights_obj,
-        batchnorm=args.batchnorm,
-        activation=args.activation,
-        epochs=args.epochs,
-        learning_rate=args.lr,
-        update_interval=args.update_interval,
-        tol=args.tol,
-        pretrain_epochs=args.pretrain_epochs,
-        pretrain_learning_rate=args.pretrain_lr,
-        ground_truth=args.ground_truth,
-        ramp_mode=args.ramp_mode,
-        res_ramp=res_ramp_obj,
-        homology_dim=args.homology_dim,
-        maximum_edge_length=args.maximum_edge_length,
-        copy=False,
-        verbose=True
-    )
+    if args.hyper:
+        print(">>> Entering Hyperparameter Optimization Mode")
+        from .hyper import hyper
+        hyper(args) 
+    else:
+        print(">>> Entering Standard Training Mode")
+        scTopoDEC(
+            adata,
+            ae_type=args.ae_type,
+            n_clusters=args.n_clusters,
+            use_hvg=args.use_hvg,
+            n_top_genes=args.n_top_genes,
+            hidden_size=hidden_size_obj,
+            loss_weights=loss_weights_obj,
+            batchnorm=args.batchnorm,
+            activation=args.activation,
+            epochs=args.epochs,
+            learning_rate=args.lr,
+            update_interval=args.update_interval,
+            tol=args.tol,
+            pretrain_epochs=args.pretrain_epochs,
+            pretrain_learning_rate=args.pretrain_lr,
+            ground_truth=args.ground_truth,
+            ramp_mode=args.ramp_mode,
+            res_ramp=res_ramp_obj,
+            homology_dim=args.homology_dim,
+            maximum_edge_length=args.maximum_edge_length,
+            copy=False,
+            verbose=True
+        )
 
     # --- Result Saving ---
     print(f"Saving results to {args.output}")
