@@ -26,7 +26,8 @@ def density_scale(t):
 
     # Compute pairwise Euclidean distances
     r = tf.reduce_sum(sample*sample, 1, keepdims=True)
-    D = tf.sqrt(tf.maximum(r - 2*tf.matmul(sample, tf.transpose(sample)) + tf.transpose(r), 0.0))
+    sq_dist = r - 2*tf.matmul(sample, tf.transpose(sample)) + tf.transpose(r)
+    D = tf.sqrt(tf.maximum(sq_dist, 1e-12))
 
     avg_dist = tf.reduce_mean(D) + 1e-8
     t_scaled = t / avg_dist
