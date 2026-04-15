@@ -21,7 +21,7 @@ from .metric import cluster_acc
 # Global train step
 # ==============================================================================
 
-@tf.function
+#@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
                ae_loss_fn, opt_dec, loss_weights, rips_layer=None):
     """
@@ -162,6 +162,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     model = network.model
     ae_loss_fn = network.loss 
     clustering_layer = model.get_layer(name='clustering')
+    rips_layer = None
     
     # 1. Pretrain
     print("\n...Pretraining Autoencoder...")
