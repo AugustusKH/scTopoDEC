@@ -169,13 +169,25 @@ def topo_loss(x, z, rips_layer):
     pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
     pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
 
+    # Ensure rank-1 for sorting
+    pers_x.set_shape([None])
+    pers_z.set_shape([None])
+
     # Standardize sizes as tf.py_function loses shape information
     max_size = tf.reduce_max([tf.shape(pers_x)[0], tf.shape(pers_z)[0]])
     pers_x = tf.pad(pers_x, [[0, max_size - tf.shape(pers_x)[0]]])
     pers_z = tf.pad(pers_z, [[0, max_size - tf.shape(pers_z)[0]]])
+
+    # Restoring shape again after padding before sort
+    pers_x.set_shape([None])
+    pers_z.set_shape([None])
     
     pers_x = tf.sort(pers_x, direction='DESCENDING')
     pers_z = tf.sort(pers_z, direction='DESCENDING')
+
+    # Add a tiny epsilon feature 
+    pers_x = tf.concat([pers_x, [1e-9]], axis=0)
+    pers_z = tf.concat([pers_z, [1e-9]], axis=0)
 
     loss = tf.reduce_mean(tf.square(pers_x - pers_z))
     
