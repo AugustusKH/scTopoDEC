@@ -13,7 +13,7 @@ from gudhi.tensorflow import RipsLayer
 from . import io
 from .utils import compute_target_distribution
 from .network import network_options
-from .loss import soft_kmeans_loss, topo_loss, topo_pi_loss
+from .loss import soft_kmeans_loss, topo_loss
 from .metric import cluster_acc
 
 
