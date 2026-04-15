@@ -242,7 +242,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
         for i in range(0, num_samples, batch_size):
             batch_idx = indices[i:i+batch_size]
             x_c = tf.cast(adata.X[batch_idx], tf.float32)
-            x_s = adata.obs.size_factors.values[batch_idx]
+            x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
