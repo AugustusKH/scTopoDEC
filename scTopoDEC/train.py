@@ -23,7 +23,7 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, rips_layer=None, topo_size):
+               ae_loss_fn, opt_dec, loss_weights, topo_size, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -254,8 +254,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 ae_loss_fn=ae_loss_fn, 
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
-                rips_layer=rips_layer,
-                topo_size=topo_size
+                topo_size=topo_size,
+                rips_layer=rips_layer
             )
 
         if verbose:
@@ -411,8 +411,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     ae_loss_fn=ae_loss_fn, 
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
-                    rips_layer=rips_layer,
-                    topo_size=topo_size
+                    topo_size=topo_size,
+                    rips_layer=rips_layer
                 )
 
             current_loss = float(loss_vals[0])
