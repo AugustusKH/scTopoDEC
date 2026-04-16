@@ -138,7 +138,7 @@ def soft_kmeans_loss(z, mu):
     return loss_sk
 
 
-def topo_loss(x, z, rips_layer):
+def topo_loss(x, z, rips_layer, sample_size):
     """
     Calculate topological loss between two different spaces using
     the persistence maximization logic to a manifold preservation loss.
@@ -147,10 +147,17 @@ def topo_loss(x, z, rips_layer):
     x: Input space (batch_size, feature_size). High-dimensional gene expression data.
     z: Latent space (batch_size, latent_dim). Low-dimensional manifold embedding.
     rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
+    sample_size: The number of cells randomly sampled to estimate the density 
+        scale, ensuring the loss is computationally efficient and scale-invariant.
     """
+    # Random sampling
+    n_points = tf.shape(x)[0]
+    shared_sample_size = tf.minimum(n_points, sample_size)
+    shared_indices = tf.random.shuffle(tf.range(n_points))[:shared_sample_size]
+
     # Scale the spaces
-    x_scaled = density_scale(x)
-    z_scaled = density_scale(z)
+    x_scaled, _ = density_scale(x, sample_size, indices=shared_indices)
+    z_scaled, _ = density_scale(z, sample_size, indices=shared_indices)
 
     # Get persistent diagrams
     dgm_x = rips_layer.call(x_scaled)[0][0]

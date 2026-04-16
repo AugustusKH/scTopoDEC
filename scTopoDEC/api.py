@@ -72,7 +72,8 @@ def scTopoDEC(adata,                        # single-cell args
         copy=False,
         check_counts=True,
         homology_dim=1,                     # Topology args
-        maximum_edge_length=2.
+        maximum_edge_length=2.,
+        topo_size=64
         ):
     """Single-cell topological deep embedded clustering (scTopoDEC) API.
         
@@ -221,6 +222,9 @@ def scTopoDEC(adata,                        # single-cell args
         maximum_edge_length : `float`, optional (default: 2.)
             The filtration cutoff. Limits the distance at which points are connected. 
             Prevents OOM errors by ignoring very long-distance edges.
+        topo_size : `integer`, optional (default: 64)
+            The number of cells randomly sampled to estimate the density 
+            scale, ensuring the loss is computationally efficient and scale-invariant.
 
         Outputs
         =======
@@ -327,6 +331,7 @@ def scTopoDEC(adata,                        # single-cell args
                            res_ramp=res_ramp,
                            homology_dim=homology_dim, 
                            maximum_edge_length=maximum_edge_length,
+                           topo_size=topo_size,
                            verbose=verbose,
                            **training_kwds)
         else:
@@ -344,6 +349,7 @@ def scTopoDEC(adata,                        # single-cell args
                       homology_dim=homology_dim, 
                       maximum_edge_length=maximum_edge_length,
                       ground_truth=ground_truth,
+                      topo_size=topo_size,
                       verbose=verbose,
                       **training_kwds)
     else:

@@ -23,7 +23,7 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, rips_layer=None):
+               ae_loss_fn, opt_dec, loss_weights, rips_layer=None, topo_size):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -51,7 +51,7 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
         if loss_weights[3] > 0:
-            l_topo = topo_loss(x_counts, z, rips_layer)
+            l_topo = topo_loss(x_counts, z, rips_layer, topo_size)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -157,7 +157,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
               pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
               early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
-              maximum_edge_length=2., **kwds):
+              maximum_edge_length=2., topo_size=64, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -254,7 +254,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 ae_loss_fn=ae_loss_fn, 
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
-                rips_layer=rips_layer
+                rips_layer=rips_layer,
+                topo_size=topo_size
             )
 
         if verbose:
@@ -302,7 +303,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
                    pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), topo_loss_fn=None, 
                    early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
-                   maximum_edge_length=2., **kwds):
+                   maximum_edge_length=2., topo_size=64, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -410,7 +411,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     ae_loss_fn=ae_loss_fn, 
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
-                    rips_layer=rips_layer
+                    rips_layer=rips_layer,
+                    topo_size=topo_size
                 )
 
             current_loss = float(loss_vals[0])
