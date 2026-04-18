@@ -42,7 +42,7 @@ def density_scale(t, select_size, indices=None):
     return t_scaled, indices
 
 
-# These codes below are used to calculate kNN distance
+########### These codes below are used to calculate kNN distance ###########
 
 def get_sknn(knn_matrix):
     """
