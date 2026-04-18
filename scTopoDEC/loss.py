@@ -106,9 +106,11 @@ class ZINB(NB):
 def soft_kmeans_loss(z, mu):
     """
     Calculate soft k-mean clustering loss.
+
     # Arguments
     z: Latent representations (batch_size, latent_dim)
     mu: Cluster centroid (n_clusters, latent_dim)
+    
     # Return
         loss scalar
     """
@@ -143,12 +145,15 @@ def topo_loss(x, z, rips_layer, sample_size):
     Calculate topological loss between two different spaces using
     the persistence maximization logic to a manifold preservation loss.
 
-    # Arguments:
+    # Arguments
     x: Input space (batch_size, feature_size). High-dimensional gene expression data.
     z: Latent space (batch_size, latent_dim). Low-dimensional manifold embedding.
     rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
     sample_size: The number of cells randomly sampled to estimate the density 
         scale, ensuring the loss is computationally efficient and scale-invariant.
+
+    # Return
+        loss scalar
     """
     # Random sampling
     n_points = tf.shape(x)[0]
