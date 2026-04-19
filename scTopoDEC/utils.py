@@ -29,16 +29,26 @@ def density_scale(t, select_size, indices=None):
 
     if indices is None:
         indices = tf.random.shuffle(tf.range(n_points))[:sample_size]
-    
-    sample = tf.gather(t, indices)
 
-    # Compute pairwise Euclidean distances
-    r = tf.reduce_sum(sample*sample, 1, keepdims=True)
-    sq_dist = r - 2*tf.matmul(sample, tf.transpose(sample)) + tf.transpose(r)
-    D = tf.sqrt(tf.maximum(sq_dist, 1e-12))
+    # Check if input is a square distance matrix [N, N] or coordinates [N, D]
+    is_distance_matrix = (tf.rank(t) == 2 and tf.shape(t)[0] == tf.shape(t)[1])
 
+    if is_distance_matrix:
+        # Sub-matrix sampling: gather rows then gather columns
+        sample = tf.gather(tf.gather(t, indices, axis=0), indices, axis=1)
+        D = sample
+    else:
+        # Coordinate sampling
+        sample = tf.gather(t, indices)
+        # Compute pairwise Euclidean distances: ||a-b||^2 = ||a||^2 + ||b||^2 - 2ab
+        r = tf.reduce_sum(sample*sample, 1, keepdims=True)
+        sq_dist = r - 2*tf.matmul(sample, tf.transpose(sample)) + tf.transpose(r)
+        D = tf.sqrt(tf.maximum(sq_dist, 1e-12))
+
+    # Calculate scale factor (average distance)
     avg_dist = tf.reduce_mean(D) + 1e-8
     t_scaled = t / avg_dist
+
     return t_scaled, indices
 
 
