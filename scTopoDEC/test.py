@@ -10,6 +10,7 @@ import gudhi as gd
 
 from .utils import density_scale, get_topo_representation
 
+
 def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
   """
   This function is used to calculate filtration and show 
