@@ -13,15 +13,25 @@ from .utils import density_scale, get_topo_representation
 def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
   """
   This function is used to calculate filtration and show 
-  persistent diagrams (PGs) based on raw adata input with 
-  several representation. We show only four modes: UMAP, kNN,
+  persistent diagrams (PGs) for loop (H1) based on raw adata input 
+  with several representation. We show only four modes: UMAP, kNN,
   eff_res, and diffusion
 
-  # Arguments
-  adata : class:`anndata.AnnData`
-    A single-cell object. Must include raw counts in `.X` or `.raw.X`. 
+  # Arguments 
   batch_size : `int`, optional (default: 32)
     Number of samples per gradient update.
+  n_components : `int`, optional (default: 30)
+    The number of dimensions to retain when using 'pca', 'umap', or their corresponding distance 
+    modes for the input representation.
+  k : `int`, optional (default: 15)
+    The number of nearest neighbors used to construct the adjacency matrix for graph-based modes 
+    (e.g., 'knn', 'eff_res', and 'diffusion'). 
+  t : `int`, optional (default: 8)
+    The diffusion time (number of power iterations) applied to the transition matrix when calculating 
+    diffusion distances.
+  maximum_edge_length : `float`, optional (default: 2.)
+    The filtration cutoff. Limits the distance at which points are connected. 
+    Prevents OOM errors by ignoring very long-distance edges.
 
   # Return
     Calculates and displays a 2x2 grid of Persistence Diagrams for different 
