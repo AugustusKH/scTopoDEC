@@ -253,7 +253,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-            if topo_input:
+            if topo_input is not None:
                 topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
             loss_vals = train_step(
@@ -419,7 +419,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 y_p_batch = tf.cast(p[batch_idx], tf.float32)
                 y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
 
-                if topo_input:
+                if topo_input is not None:
                     topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
                 loss_vals = train_step(
