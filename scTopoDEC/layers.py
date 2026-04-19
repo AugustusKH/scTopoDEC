@@ -210,7 +210,31 @@ def _Rips(DX, max_edge, dimensions, homology_coeff_field):
     rc = RipsComplex(distance_matrix=DX, max_edge_length=max_edge)
     st = rc.create_simplex_tree(max_dimension=max(dimensions) + 1)
     st.compute_persistence(homology_coeff_field=homology_coeff_field)
-    return st.flag_persistence_generators()
+    
+    L_indices = []
+    for dimension in dimensions:
+
+        if dimension == 0:
+            finite_pairs = pairs[0]
+            essential_pairs = pairs[2]
+        else:
+            finite_pairs = (
+                pairs[1][dimension - 1]
+                if len(pairs[1]) >= dimension
+                else np.empty(shape=[0, 4])
+            )
+            essential_pairs = (
+                pairs[3][dimension - 1]
+                if len(pairs[3]) >= dimension
+                else np.empty(shape=[0, 2])
+            )
+
+        finite_indices = np.array(finite_pairs.flatten(), dtype=np.int32)
+        essential_indices = np.array(essential_pairs.flatten(), dtype=np.int32)
+
+        L_indices.append((finite_indices, essential_indices))
+
+    return L_indices
 
 
 class RipsLayer(tf.keras.layers.Layer):
