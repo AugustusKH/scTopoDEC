@@ -22,8 +22,8 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_size, topo_latent_mode,
-               k, t, topo_input_batch=None, rips_layer=None):
+               ae_loss_fn, opt_dec, loss_weights, topo_size, weight_topo_loss,
+               topo_latent_mode, k, t, topo_input_batch=None, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -53,7 +53,8 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
         if loss_weights[3] > 0 and topo_input_batch is not None:
             z_topo = get_topo_representation(z, latent_mode=topo_latent_mode, 
                                              k=k, t=t, is_latent=True)
-            l_topo = topo_loss(topo_input_batch, z_topo, rips_layer, topo_size)
+            l_topo = topo_loss(topo_input_batch, z_topo, rips_layer, topo_size,
+                               weight=weight_topo_loss)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -159,8 +160,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
               verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
               pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
               cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
-              topo_size=64, topo_input_mode='pca', topo_latent_mode='raw', n_components=30, k=15, 
-              t=8, **kwds):
+              topo_size=64, weight_topo_loss=True,topo_input_mode='pca', topo_latent_mode='raw', 
+              n_components=30, k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -265,6 +266,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
                 topo_size=topo_size,
+                weight_topo_loss=weight_topo_loss,
                 topo_latent_mode=topo_latent_mode,
                 k=k, t=t, topo_input_batch=topo_input_batch,
                 rips_layer=rips_layer
@@ -315,7 +317,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
                    pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
                    cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
-                   topo_input_mode='pca', topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
+                   weight_topo_loss=True, topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
+                   k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -431,6 +434,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
                     topo_size=topo_size,
+                    weight_topo_loss=weight_topo_loss,
                     topo_latent_mode=topo_latent_mode,
                     k=k, t=t, topo_input_batch=topo_input_batch,
                     rips_layer=rips_layer

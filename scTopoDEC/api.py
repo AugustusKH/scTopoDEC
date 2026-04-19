@@ -73,6 +73,7 @@ def scTopoDEC(adata,                        # single-cell args
         homology_dim=1,                     # Topology args
         maximum_edge_length=2.,
         topo_size=64,
+        weight_topo_loss=True,
         topo_input_mode='pca',
         topo_latent_mode='raw',
         n_components=30, 
@@ -229,6 +230,10 @@ def scTopoDEC(adata,                        # single-cell args
         topo_size : `integer`, optional (default: 64)
             The number of cells randomly sampled to estimate the density 
             scale, ensuring the loss is computationally efficient and scale-invariant.
+        weight_topo_loss : `bool`, optional (default: True)
+            If True, the topological loss is calculated as a Weighted Mean Squared Error (WMSE), 
+            where each feature's contribution to the gradient is scaled by its persistence (Death-Birth) 
+            in the input space.
         topo_input_mode : `string`, optional (default: 'pca')
             The method used to generate the ground-truth topological representation from the 
             input data. Options include coordinate-based point clouds ('pca', 'umap', 'raw') or 
@@ -353,6 +358,7 @@ def scTopoDEC(adata,                        # single-cell args
                            homology_dim=homology_dim, 
                            maximum_edge_length=maximum_edge_length,
                            topo_size=topo_size,
+                           weight_topo_loss=weight_topo_loss,
                            topo_input_mode=topo_input_mode, 
                            topo_latent_mode=topo_latent_mode, 
                            n_components=n_components, k=k, t=t,
@@ -374,6 +380,7 @@ def scTopoDEC(adata,                        # single-cell args
                       maximum_edge_length=maximum_edge_length,
                       ground_truth=ground_truth,
                       topo_size=topo_size,
+                      weight_topo_loss=weight_topo_loss,
                       topo_input_mode=topo_input_mode, 
                       topo_latent_mode=topo_latent_mode, 
                       n_components=n_components, k=k, t=t,

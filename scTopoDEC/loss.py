@@ -138,7 +138,7 @@ def soft_kmeans_loss(z, mu):
     return loss_sk
 
 
-def topo_loss(x, z, rips_layer, sample_size):
+def topo_loss(x, z, rips_layer, sample_size, weight=True):
     """
     Calculate topological loss between two different spaces using
     the persistence maximization logic to a manifold preservation loss.
@@ -149,6 +149,7 @@ def topo_loss(x, z, rips_layer, sample_size):
     rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
     sample_size: The number of cells randomly sampled to estimate the density 
         scale, ensuring the loss is computationally efficient and scale-invariant.
+    weight : If True, use weighted MSE to suppress noises during optimization.
 
     # Return
         loss scalar
@@ -193,6 +194,11 @@ def topo_loss(x, z, rips_layer, sample_size):
 
     # Calculate MSE on aligned vectors
     sq_diff = tf.square(pers_x_sorted - pers_z_sorted)
-    loss = tf.reduce_sum(sq_diff) / (tf.cast(max_features, tf.float32) + 1e-8)
+
+    if weight:
+        weighted_sq_diff = sq_diff * pers_x_sorted
+        loss = tf.reduce_sum(weighted_sq_diff) / (tf.reduce_sum(pers_x_sorted) + 1e-8)
+    else:
+        loss = tf.reduce_sum(sq_diff) / (tf.cast(max_features, tf.float32) + 1e-8)
 
     return loss
