@@ -50,7 +50,7 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
 
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
-        if loss_weights[3] > 0 and topo_input_batch:
+        if loss_weights[3] > 0 and topo_input_batch is not None:
             z_topo = get_topo_representation(z, latent_mode=topo_latent_mode, 
                                              k=k, t=t, is_latent=True)
             l_topo = topo_loss(topo_input_batch, z_topo, rips_layer, topo_size)
