@@ -7,12 +7,11 @@ from keras import layers, models, ops, optimizers
 from tqdm import tqdm
 from sklearn.cluster import KMeans
 from sklearn import metrics
-import gudhi as gd
-from gudhi.tensorflow import RipsLayer
 
 from . import io
 from .utils import compute_target_distribution, get_topo_representation
 from .network import network_options
+from .layers import RipsLayer
 from .loss import soft_kmeans_loss, topo_loss
 from .metric import cluster_acc
 

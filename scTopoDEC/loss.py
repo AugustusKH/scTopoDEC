@@ -5,7 +5,6 @@ from keras import ops
 
 from .utils import density_scale
 import gudhi as gd
-from gudhi.tensorflow import RipsLayer
 
 
 
@@ -164,9 +163,13 @@ def topo_loss(x, z, rips_layer, sample_size):
     x_scaled, _ = density_scale(x, sample_size, indices=shared_indices)
     z_scaled, _ = density_scale(z, sample_size, indices=shared_indices)
 
+    # Determine input types for the Rips filtration
+    x_is_dist = (tf.rank(x_scaled) == 2 and tf.shape(x_scaled)[0] == tf.shape(x_scaled)[1])
+    z_is_dist = (tf.rank(z_scaled) == 2 and tf.shape(z_scaled)[0] == tf.shape(z_scaled)[1])
+
     # Get persistent diagrams
-    dgm_x = rips_layer.call(x_scaled)[0][0]
-    dgm_z = rips_layer.call(z_scaled)[0][0]
+    dgm_x = rips_layer.call(x_scaled, is_distance_matrix=x_is_dist)[0][0]
+    dgm_z = rips_layer.call(z_scaled, is_distance_matrix=z_is_dist)[0][0]
 
     # Calculate persistence (death - birth)
     pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
