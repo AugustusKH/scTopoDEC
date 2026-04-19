@@ -4,7 +4,6 @@ import keras
 from keras import ops
 
 from .utils import density_scale
-import gudhi as gd
 
 
 
