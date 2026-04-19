@@ -21,10 +21,9 @@ except ImportError:
     raise ImportError('scTopoDEC requires GUDHI v3+. Please follow instructions'
                       ' at https://gudhi.inria.fr/python/latest/installation.html to install.')
 
-from .io import read_dataset, normalize, read_genelist
+from .io import read_dataset, normalize
 from .train import ae_train, dec_train, ramp_dec_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
-from .metric import cluster_acc
 
 tf.keras.backend.clear_session()
 
@@ -73,7 +72,12 @@ def scTopoDEC(adata,                        # single-cell args
         check_counts=True,
         homology_dim=1,                     # Topology args
         maximum_edge_length=2.,
-        topo_size=64
+        topo_size=64,
+        topo_input_mode='pca',
+        topo_latent_mode='raw',
+        n_components=30, 
+        k=15, 
+        t=8
         ):
     """Single-cell topological deep embedded clustering (scTopoDEC) API.
         
@@ -225,6 +229,23 @@ def scTopoDEC(adata,                        # single-cell args
         topo_size : `integer`, optional (default: 64)
             The number of cells randomly sampled to estimate the density 
             scale, ensuring the loss is computationally efficient and scale-invariant.
+        topo_input_mode : `string`, optional (default: 'pca')
+            The method used to generate the ground-truth topological representation from the 
+            input data. Options include coordinate-based point clouds ('pca', 'umap', 'raw') or 
+            pre-computed distance matrices ('pca_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
+        topo_latent_mode : `string`, optional (default: 'raw')
+            The method used to represent the latent space Z for topological comparison. 
+            Use 'raw' for coordinate-based comparison or 'euclid_dist'/'knn'/'eff_res'/'diffusion' 
+            for distance-matrix-based comparison to ensure the operations remain differentiable during training.
+        n_components : `int`, optional (default: 30)
+            The number of dimensions to retain when using 'pca', 'umap', or their corresponding distance 
+            modes for the input representation.
+        k : `int`, optional (default: 15)
+            The number of nearest neighbors used to construct the adjacency matrix for graph-based modes 
+            (e.g., 'knn', 'eff_res', and 'diffusion'). 
+        t : `int`, optional (default: 8)
+            The diffusion time (number of power iterations) applied to the transition matrix when calculating 
+            diffusion distances.
 
         Outputs
         =======
@@ -332,6 +353,9 @@ def scTopoDEC(adata,                        # single-cell args
                            homology_dim=homology_dim, 
                            maximum_edge_length=maximum_edge_length,
                            topo_size=topo_size,
+                           topo_input_mode=topo_input_mode, 
+                           topo_latent_mode=topo_latent_mode, 
+                           n_components=n_components, k=k, t=t,
                            verbose=verbose,
                            **training_kwds)
         else:
@@ -350,6 +374,9 @@ def scTopoDEC(adata,                        # single-cell args
                       maximum_edge_length=maximum_edge_length,
                       ground_truth=ground_truth,
                       topo_size=topo_size,
+                      topo_input_mode=topo_input_mode, 
+                      topo_latent_mode=topo_latent_mode, 
+                      n_components=n_components, k=k, t=t,
                       verbose=verbose,
                       **training_kwds)
     else:

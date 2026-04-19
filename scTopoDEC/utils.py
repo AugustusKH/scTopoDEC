@@ -3,6 +3,7 @@ import tensorflow as tf
 from keras import ops
 from scipy.spatial.distance import pdist, squareform
 from . import topogeom as tg
+from .io import data_compression
 
 
 def compute_target_distribution(q):
@@ -41,7 +42,8 @@ def density_scale(t, select_size, indices=None):
     return t_scaled, indices
 
 
-def get_topo_representation(data, input_mode='pca', latent_mode='', k=15, t=8, is_latent=False):
+def get_topo_representation(data, input_mode='pca', latent_mode='raw', n_components=30, k=15, t=8, 
+                            is_latent=False):
     """
     Standardizes inputs for Persistent Homology.
     
@@ -49,6 +51,7 @@ def get_topo_representation(data, input_mode='pca', latent_mode='', k=15, t=8, i
     data         : adata (for input space) or Tensor (for latent space). 
     input_mode   : 'raw', 'pca', 'umap', 'pca_dist', 'umap_dist', 'knn', 'eff_res', or 'diffusion'
     latent_mode  : 'raw', 'euclid_dist', 'knn', 'eff_res', or 'diffusion'
+    n_components : Number of components for PCA and UMAP
     k            : Number of neighbors for graph modes
     t            : Diffusion time (steps)
     is_latent    : If True, uses differentiable TensorFlow logic
@@ -81,21 +84,27 @@ def get_topo_representation(data, input_mode='pca', latent_mode='', k=15, t=8, i
             return X
         elif input_mode == 'pca':
             # Returns the PCA coordinates
+            data = data_compression(data, pca=True, knn=False, umap=False, n_components=n_components, k=k)
             return data.obsm['X_pca']
         elif input_mode == 'umap':
             # Returns the UMAP coordinates
+            data = data_compression(data, pca=True, knn=True, umap=True, n_components=n_components, k=k)
             return data.obsm['X_umap']
         elif input_mode == 'pca_dist':
-            # Returns the PCA coordinates
+            # Returns the PCA-based distance
+            data = data_compression(data, pca=True, knn=False, umap=False, n_components=n_components, k=k)
             return squareform(pdist(data.obsm['X_pca']))
         elif input_mode == 'umap_dist':
-            # Returns the UMAP coordinates
+            # Returns the UMAP-based distance
+            data = data_compression(data, pca=True, knn=True, umap=True, n_components=n_components, k=k)
             return squareform(pdist(data.obsm['X_umap']))
         elif input_mode == "knn":
             # Binary adjacency from Scanpy connectivities
+            data = data_compression(data, pca=True, knn=True, umap=False, n_components=n_components, k=k)
             return (data.obsp['connectivities'].toarray() > 0).astype(np.float32)
         elif input_mode in ["eff_res", "diffusion"]:
             # Pre-computed Topological Distance
+            data = data_compression(data, pca=True, knn=True, umap=False, n_components=n_components, k=k)
             knn_matrix = data.obsp['connectivities']
             return tg.get_dist(knn_matrix, distance=input_mode, t=t)
 

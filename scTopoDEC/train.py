@@ -11,7 +11,7 @@ import gudhi as gd
 from gudhi.tensorflow import RipsLayer
 
 from . import io
-from .utils import compute_target_distribution
+from .utils import compute_target_distribution, get_topo_representation
 from .network import network_options
 from .loss import soft_kmeans_loss, topo_loss
 from .metric import cluster_acc
@@ -23,7 +23,8 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_size, rips_layer=None):
+               ae_loss_fn, opt_dec, loss_weights, topo_size, topo_latent_mode,
+               k, t, topo_input_batch=None, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -50,8 +51,10 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
 
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
-        if loss_weights[3] > 0:
-            l_topo = topo_loss(x_counts, z, rips_layer, topo_size)
+        if loss_weights[3] > 0 and topo_input_batch:
+            z_topo = get_topo_representation(z, latent_mode=topo_latent_mode, 
+                                             k=k, t=t, is_latent=True)
+            l_topo = topo_loss(topo_input_batch, z_topo, rips_layer, topo_size)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -153,15 +156,17 @@ def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 
 def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
               optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
-              batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
-              use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
-              pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
-              early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
-              maximum_edge_length=2., topo_size=64, **kwds):
+              batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), use_raw_as_output=True, 
+              verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
+              pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
+              cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
+              topo_size=64, topo_input_mode='pca', topo_latent_mode='raw', n_components=30, k=15, 
+              t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
     clustering_layer = model.get_layer(name='clustering')
+    topo_input = None
     rips_layer = None
     
     # 1. Pretrain
@@ -206,8 +211,10 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     wait, es_wait = 0, 0
     factor = 0.1
 
-    # Contruct the RipsLayer
+    # Contruct the RipsLayer and generate topological input representation
     if loss_weights[3] > 0:
+        topo_input = get_topo_representation(adata, input_mode=topo_input_mode, n_components=n_components, 
+                                             k=k, t=t, is_latent=False)
         rips_layer = RipsLayer(
             maximum_edge_length=maximum_edge_length, 
             homology_dimensions=[homology_dim]
@@ -243,8 +250,12 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
             batch_idx = indices[i:i+batch_size]
             x_c = tf.cast(adata.X[batch_idx], tf.float32)
             x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
+            topo_input_batch = None
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+
+            if topo_input:
+                topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
             loss_vals = train_step(
                 x_c, x_s, y_p_batch, y_r, 
@@ -255,6 +266,8 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
                 topo_size=topo_size,
+                topo_latent_mode=topo_latent_mode,
+                k=k, t=t, topo_input_batch=topo_input_batch,
                 rips_layer=rips_layer
             )
 
@@ -301,13 +314,14 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                    optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
                    batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
                    verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), topo_loss_fn=None, 
-                   early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
-                   maximum_edge_length=2., topo_size=64, **kwds):
+                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
+                   cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
+                   topo_input_mode='pca', topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
     clustering_layer = model.get_layer(name='clustering')
+    topo_input = None
     rips_layer = None
     
     # 1. Pretrain 
@@ -335,6 +349,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
 
     # Contruct the RipsLayer
     if loss_weights[3] > 0:
+        topo_input = get_topo_representation(adata, input_mode=topo_input_mode, n_components=n_components, 
+                                             k=k, t=t, is_latent=False)
         rips_layer = RipsLayer(
             maximum_edge_length=maximum_edge_length, 
             homology_dimensions=[homology_dim]
@@ -383,7 +399,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                     ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
                     l_print = [np.round(float(l), 5) for l in loss_vals]
-                    print(f"Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, Total_L={l_print[0]}")
+                    print(f"Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, Total_L={l_print[0]}")
                 # -------------------------
 
                 # Convergence check
@@ -400,8 +416,12 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                 batch_idx = indices[i:i+batch_size]
                 x_c = tf.cast(adata.X[batch_idx], tf.float32)
                 x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
+                topo_input_batch = None
                 y_p_batch = tf.cast(p[batch_idx], tf.float32)
                 y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+
+                if topo_input:
+                    topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
                 loss_vals = train_step(
                     x_c, x_s, y_p_batch, y_r, 
@@ -412,6 +432,8 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
                     topo_size=topo_size,
+                    topo_latent_mode=topo_latent_mode,
+                    k=k, t=t, topo_input_batch=topo_input_batch,
                     rips_layer=rips_layer
                 )
 
