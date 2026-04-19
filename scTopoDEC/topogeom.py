@@ -465,6 +465,7 @@ def get_dist(knn_matrix, distance="eff_res", **kwargs):
         Distance matrix
     """
     if distance == "eff_res":
+        kwargs.pop('t', None) # Remove 't' from kwargs if it exists before calling get_eff_res_dist
         dist = get_eff_res_dist(knn_matrix, **kwargs)
     elif distance == "diffusion":
         dist = get_diffusion_dist(knn_matrix, **kwargs)
