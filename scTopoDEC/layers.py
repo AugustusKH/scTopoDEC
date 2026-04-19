@@ -210,7 +210,8 @@ def _Rips(DX, max_edge, dimensions, homology_coeff_field):
     rc = RipsComplex(distance_matrix=DX, max_edge_length=max_edge)
     st = rc.create_simplex_tree(max_dimension=max(dimensions) + 1)
     st.compute_persistence(homology_coeff_field=homology_coeff_field)
-    
+    pairs = st.flag_persistence_generators()
+
     L_indices = []
     for dimension in dimensions:
 
