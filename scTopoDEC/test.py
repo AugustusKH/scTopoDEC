@@ -40,7 +40,6 @@ def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
   """
   # Load the example single-cell dataset
   adata = sc.datasets.paul15()
-  adata_orig = adata.copy()
 
   # Set global seeds for reproducibility
   random.seed(0)
