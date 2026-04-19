@@ -102,6 +102,20 @@ def normalize(adata, filter_min_counts=True, size_factors=True, normalize_input=
 
     return adata
 
+
+def data_compression(adata, pca=True, knn=True, umap=True, n_components=30, k=15):
+    if pca:
+        sc.tl.pca(adata)
+
+    if knn:
+        sc.pp.neighbors(adata, n_neighbors=k, n_pcs=n_components)
+
+    if umap:
+        sc.tl.umap(adata, n_components=n_components)
+
+    return adata
+
+
 def read_genelist(filename):
     with open(filename, 'rt') as f:
         genelist = [line.strip() for line in f if line.strip()]
