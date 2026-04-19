@@ -1,8 +1,4 @@
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
-from scipy.spatial.distance import pdist, squareform
-import scipy.sparse as sp
-import scipy.linalg
 import tensorflow as tf
 from keras import ops
 
