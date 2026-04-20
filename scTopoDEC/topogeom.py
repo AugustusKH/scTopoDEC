@@ -135,8 +135,15 @@ def get_sknn(knn_matrix):
     # Return 
         sparse coo adjacency matrix (symmetric and unweighted)
     """
+    # Change from tensorflow to numpy format
+    if hasattr(knn_matrix, "numpy"):
+        knn_matrix = knn_matrix.numpy()
+    
     # Change to compressed sparse row (CSR) form
-    sknn = knn_matrix.copy().tocsr()
+    if not sp.issparse(knn_matrix):
+        sknn = sp.csr_matrix(knn_matrix)
+    else:
+        sknn = knn_matrix.copy().tocsr()
 
     # Make the matrix unweighted (binary: 1 if neighbor, 0 otherwise)
     sknn.data = np.ones_like(sknn.data)
