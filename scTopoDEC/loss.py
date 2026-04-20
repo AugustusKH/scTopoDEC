@@ -187,6 +187,8 @@ def topo_loss(x, z, rips_layer, sample_size, weight=True):
     pers_z_padded = tf.pad(pers_z, [[0, max_features - n_z]])
     pers_x_padded = tf.reshape(pers_x_padded, [max_features])
     pers_z_padded = tf.reshape(pers_z_padded, [max_features])
+    pers_x_padded = tf.cast(pers_x_padded, tf.float32)
+    pers_z_padded = tf.cast(pers_z_padded, tf.float32)
 
     # Sort vectors descending to align the most prominent features
     pers_x_sorted = tf.sort(pers_x_padded, direction='DESCENDING')
