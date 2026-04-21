@@ -11,7 +11,7 @@ import gudhi as gd
 from .utils import density_scale, get_topo_representation
 
 
-def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
+def ph_input_test(adata, batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
   """
   This function is used to calculate filtration and show 
   persistent diagrams (PGs) for loop (H1) based on raw adata input 
@@ -19,6 +19,8 @@ def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
   eff_res, and diffusion
 
   # Arguments 
+  adata : class:`anndata.AnnData`
+    A single-cell object. Must include raw counts in `.X` or `.raw.X`.
   batch_size : `int`, optional (default: 32)
     Number of samples per gradient update.
   n_components : `int`, optional (default: 30)
@@ -38,20 +40,17 @@ def ph_input_test(batch_size=64, n_components=30, k=15, t=8, max_edge_length=2):
     Calculates and displays a 2x2 grid of Persistence Diagrams for different 
     representation modes.
   """
-  # Load the example single-cell dataset
-  adata = sc.datasets.paul15()
-
   # Set global seeds for reproducibility
   random.seed(0)
   np.random.seed(0)
   tf.random.set_seed(0)
   keras.utils.set_random_seed(0)
 
-  represent_modes = ('umap', 'knn', 'eff_res', 'diffusion')
+  represent_modes = ('raw', 'pca', 'umap', 'knn', 'eff_res', 'diffusion')
     
   # Initialize the Matplotlib figure
-  fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-  axes = axes.flatten() 
+  fig, axes = plt.subplots(3, 2, figsize=(10, 12))
+  axes = axes.flatten()
 
   for i, mode in enumerate(represent_modes):
     print(f"Representation with: {mode}")
