@@ -52,6 +52,6 @@ def model_eval(adata, model_clusters, ground_truth):
     acc = np.round(cluster_acc(y_true, y_pred), 5)
     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
     ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
-    print(f"Clustering performance: ACC={acc}, NMI={nmi}, ARI={ari}")
+    #print(f"Clustering performance: ACC={acc}, NMI={nmi}, ARI={ari}")
     
     return acc, nmi, ari 
