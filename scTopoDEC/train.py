@@ -230,10 +230,11 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
             if verbose and ground_truth is not None and ground_truth in adata.obs:
                 y_true = adata.obs[ground_truth].values
                 acc = np.round(cluster_acc(y_true, y_pred), 5)
-                nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
+                ami = np.round(metrics.adjusted_mutual_info_score(y_true, y_pred), 5)
                 ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
+                nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                 l_print = [np.round(l, 5) for l in loss_vals]
-                print(f"Epoch {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, Total_L={l_print[0]}")
+                print(f"Epoch {epoch}: ACC={acc}, AMI={ami}, ARI={ari}, NMI={nmi}, Total_L={l_print[0]}")
             # -------------------------
 
             # Convergence Check
@@ -398,10 +399,11 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                 if verbose and ground_truth is not None and ground_truth in adata.obs:
                     y_true = adata.obs[ground_truth].values
                     acc = np.round(cluster_acc(y_true, y_pred), 5)
-                    nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
+                    ami = np.round(metrics.adjusted_mutual_info_score(y_true, y_pred), 5)
                     ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
+                    nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
                     l_print = [np.round(float(l), 5) for l in loss_vals]
-                    print(f"Res {current_res} | Ep {epoch}: ACC={acc}, NMI={nmi}, ARI={ari}, Total_L={l_print[0]}")
+                    print(f"Res {current_res} | Ep {epoch}: ACC={acc}, AMI={ami}, ARI={ari}, NMI={nmi}, Total_L={l_print[0]}")
                 # -------------------------
 
                 # Convergence check

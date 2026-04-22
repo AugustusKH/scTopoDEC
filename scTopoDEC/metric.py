@@ -45,13 +45,14 @@ def model_eval(adata, model_clusters, ground_truth):
         A key in `adata.obs` containing known cell-type or cluster labels.
 
     # Return
-        clustering accuracy, NMI, ARI
+        clustering accuracy, AMI, ARI, NMI
     """
     y_pred = adata.obs[model_clusters].values
     y_true = adata.obs[ground_truth].values
     acc = np.round(cluster_acc(y_true, y_pred), 5)
-    nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
+    ami = np.round(metrics.adjusted_mutual_info_score(y_true, y_pred), 5)
     ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
-    #print(f"Clustering performance: ACC={acc}, NMI={nmi}, ARI={ari}")
+    nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
+    #print(f"Clustering performance: ACC={acc}, AMI={ami}, ARI={ari}, NMI={nmi}")
     
-    return acc, nmi, ari 
+    return acc, ami, ari, nmi 
