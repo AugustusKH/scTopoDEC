@@ -60,7 +60,7 @@ def get_topo_representation(data, input_mode='pca', latent_mode='raw', n_compone
     # Arguments
     data         : adata (for input space) or Tensor (for latent space). 
     input_mode   : 'raw', 'pca', 'umap', 'pca_dist', 'umap_dist', 'knn', 'eff_res', or 'diffusion'
-    latent_mode  : 'raw', 'euclid_dist', 'knn', 'eff_res', or 'diffusion'
+    latent_mode  : 'raw', 'inner_product','euclid_dist', 'knn', 'eff_res', or 'diffusion'
     n_components : Number of components for PCA and UMAP
     k            : Number of neighbors for graph modes
     t            : Diffusion time (steps)
@@ -75,6 +75,9 @@ def get_topo_representation(data, input_mode='pca', latent_mode='raw', n_compone
         # data is a Tensor 'z' (batch_size, latent_dim)
         if latent_mode == 'raw':
             return data
+        elif latent_mode == 'inner_product':
+            inner_product = tf.matmul(data, data, transpose_b=True)
+            return inner_product
         elif latent_mode == 'euclid_dist':
             # Full (batch, batch) Euclidean distance
             return tg.get_latent_geometry(data, k=None)

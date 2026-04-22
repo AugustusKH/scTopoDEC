@@ -242,8 +242,9 @@ def scTopoDEC(adata,                        # single-cell args
             pre-computed distance matrices ('pca_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
         topo_latent_mode : `string`, optional (default: 'raw')
             The method used to represent the latent space Z for topological comparison. 
-            Use 'raw' for coordinate-based comparison or 'euclid_dist'/'knn'/'eff_res'/'diffusion' 
-            for distance-matrix-based comparison to ensure the operations remain differentiable during training.
+            Use 'raw' for coordinate-based comparison, 'inner_product' for matrix multiplication between Z and 
+            its transpose, or 'euclid_dist'/'knn'/'eff_res'/'diffusion' for distance-matrix-based comparison to 
+            ensure the operations remain differentiable during training.
         n_components : `int`, optional (default: 30)
             The number of dimensions to retain when using 'pca', 'umap', or their corresponding distance 
             modes for the input representation.
