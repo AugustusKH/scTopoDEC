@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 import keras
 from keras import ops
+import gudhi.wasserstein as gw
 
 from .utils import density_scale
 
@@ -138,7 +139,7 @@ def soft_kmeans_loss(z, mu):
     return loss_sk
 
 
-def topo_loss(x, z, rips_layer, sample_size, weight=True):
+def topo_loss(x, z, rips_layer, sample_size, pg_dist='weight_mse', order=1.):
     """
     Calculate topological loss between two different spaces using
     the persistence maximization logic to a manifold preservation loss.
@@ -149,11 +150,16 @@ def topo_loss(x, z, rips_layer, sample_size, weight=True):
     rips_layer: TensorFlow layer for computing Rips persistence out of a point cloud
     sample_size: The number of cells randomly sampled to estimate the density 
         scale, ensuring the loss is computationally efficient and scale-invariant.
-    weight : If True, use weighted MSE to suppress noises during optimization.
+    pg_dist : Method used to measure persistent diagram distance.
+        'mse', mean square error (MSE); 'weight_mse', weighted MSE;
+        'wd', Wasserstein distance
+    order : Wasserstein exponent q (1 <= q < infinity). 
 
     # Return
         loss scalar
     """
+    assert pg_dist in ('mse', 'weight_mse', 'wd'), 'persistent distance is not correct.'
+
     # Random sampling
     n_points = tf.shape(x)[0]
     shared_sample_size = tf.minimum(n_points, sample_size)
@@ -171,36 +177,48 @@ def topo_loss(x, z, rips_layer, sample_size, weight=True):
     dgm_x = rips_layer.call(x_scaled, is_distance_matrix=x_is_dist)[0][0]
     dgm_z = rips_layer.call(z_scaled, is_distance_matrix=z_is_dist)[0][0]
 
-    # Calculate persistence (death - birth)
-    pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
-    pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
-
-    # Add a single 0.0 feature to both to ensures the size is always >= 1
-    pers_x = tf.concat([pers_x, [0.0]], axis=0)
-    pers_z = tf.concat([pers_z, [0.0]], axis=0)
-
-    # Dynamic padding to match shapes
-    n_x = tf.shape(pers_x)[0]
-    n_z = tf.shape(pers_z)[0]
-    max_features = tf.reduce_max([n_x, n_z])
-    pers_x_padded = tf.pad(pers_x, [[0, max_features - n_x]])
-    pers_z_padded = tf.pad(pers_z, [[0, max_features - n_z]])
-    pers_x_padded = tf.reshape(pers_x_padded, [max_features])
-    pers_z_padded = tf.reshape(pers_z_padded, [max_features])
-    pers_x_padded = tf.cast(pers_x_padded, tf.float32)
-    pers_z_padded = tf.cast(pers_z_padded, tf.float32)
-
-    # Sort vectors descending to align the most prominent features
-    pers_x_sorted = tf.sort(pers_x_padded, direction='DESCENDING')
-    pers_z_sorted = tf.sort(pers_z_padded, direction='DESCENDING')
-
-    # Calculate MSE on aligned vectors
-    sq_diff = tf.square(pers_x_sorted - pers_z_sorted)
-
-    if weight:
-        weighted_sq_diff = sq_diff * pers_x_sorted
-        loss = tf.reduce_sum(weighted_sq_diff) / (tf.reduce_sum(pers_x_sorted) + 1e-8)
+    if pg_dist == 'wd':
+        loss = gw.wasserstein_distance(
+            dgm_z, 
+            dgm_x, 
+            order=order, 
+            enable_autodiff=True,
+            keep_essential_parts=False # Essential for autodiff compatibility
+        )
+        
+        return loss
+    
     else:
-        loss = tf.reduce_sum(sq_diff) / (tf.cast(max_features, tf.float32) + 1e-8)
+        # Calculate persistence (death - birth)
+        pers_x = 0.5 * (dgm_x[:, 1] - dgm_x[:, 0])
+        pers_z = 0.5 * (dgm_z[:, 1] - dgm_z[:, 0])
 
-    return loss
+        # Add a single 0.0 feature to both to ensures the size is always >= 1
+        pers_x = tf.concat([pers_x, [0.0]], axis=0)
+        pers_z = tf.concat([pers_z, [0.0]], axis=0)
+
+        # Dynamic padding to match shapes
+        n_x = tf.shape(pers_x)[0]
+        n_z = tf.shape(pers_z)[0]
+        max_features = tf.reduce_max([n_x, n_z])
+        pers_x_padded = tf.pad(pers_x, [[0, max_features - n_x]])
+        pers_z_padded = tf.pad(pers_z, [[0, max_features - n_z]])
+        pers_x_padded = tf.reshape(pers_x_padded, [max_features])
+        pers_z_padded = tf.reshape(pers_z_padded, [max_features])
+        pers_x_padded = tf.cast(pers_x_padded, tf.float32)
+        pers_z_padded = tf.cast(pers_z_padded, tf.float32)
+
+        # Sort vectors descending to align the most prominent features
+        pers_x_sorted = tf.sort(pers_x_padded, direction='DESCENDING')
+        pers_z_sorted = tf.sort(pers_z_padded, direction='DESCENDING')
+
+        # Calculate MSE on aligned vectors
+        sq_diff = tf.square(pers_x_sorted - pers_z_sorted)
+
+        if pg_dist == 'weight_mse':
+            weighted_sq_diff = sq_diff * pers_x_sorted
+            loss = tf.reduce_sum(weighted_sq_diff) / (tf.reduce_sum(pers_x_sorted) + 1e-8)
+        else:
+            loss = tf.reduce_sum(sq_diff) / (tf.cast(max_features, tf.float32) + 1e-8)
+
+        return loss

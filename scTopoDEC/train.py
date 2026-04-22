@@ -22,7 +22,7 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_size, weight_topo_loss,
+               ae_loss_fn, opt_dec, loss_weights, topo_size, pg_dist, order,
                topo_latent_mode, k, t, topo_input_batch=None, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
@@ -54,7 +54,7 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
             z_topo = get_topo_representation(z, latent_mode=topo_latent_mode, 
                                              k=k, t=t, is_latent=True)
             l_topo = topo_loss(topo_input_batch, z_topo, rips_layer, topo_size,
-                               weight=weight_topo_loss)
+                               pg_dist=pg_dist, order=order)
 
         # Total loss calculation 
         total_loss = (loss_weights[0] * l_zinb) + \
@@ -75,7 +75,7 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
 # Pretraining (ZINB-autoencoder)
 # ==============================================================================
 
-def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.001,
+def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.001,
           initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
           use_raw_as_output=True, early_stop=15, batch_size=256, clip_grad=1.0, save_weights=True,
           validation_split=0.1, tensorboard=False, verbose=True, **kwds):
@@ -154,14 +154,14 @@ def ae_train(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 # Clustering (DEC)
 # ==============================================================================
 
-def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
-              optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
-              batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), use_raw_as_output=True, 
-              verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
-              pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
-              cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
-              topo_size=64, weight_topo_loss=True,topo_input_mode='pca', topo_latent_mode='raw', 
-              n_components=30, k=15, t=8, **kwds):
+def train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
+          optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
+          batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), use_raw_as_output=True, 
+          verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
+          pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
+          cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
+          topo_size=64, pg_dist='weight_mse', order=1., topo_input_mode='pca', 
+          topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -174,7 +174,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     start_pretrain = time.time()
 
     network.model = network.zinb_ae # Temporarily point network.model to the AE version
-    ae_train(adata, 
+    pretrain(adata, 
              network, 
              epochs=pretrain_epochs,
              optimizer=pretrain_optimizer,
@@ -266,7 +266,7 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
                 topo_size=topo_size,
-                weight_topo_loss=weight_topo_loss,
+                pg_dist=pg_dist, order=order,
                 topo_latent_mode=topo_latent_mode,
                 k=k, t=t, topo_input_batch=topo_input_batch,
                 rips_layer=rips_layer
@@ -311,14 +311,14 @@ def dec_train(adata, network, output_dir=None, save_weights=True, save_interval=
     return y_pred
 
 
-def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
-                   optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
-                   batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
-                   verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-                   pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
-                   cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
-                   weight_topo_loss=True, topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
-                   k=15, t=8, **kwds):
+def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
+               optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
+               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
+               verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
+               pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
+               cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
+               pg_dist='weight_mse', order=1., topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
+               k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -330,7 +330,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
     print("\n...Pretraining Autoencoder...")
     start_pretrain = time.time()
     network.model = network.zinb_ae 
-    ae_train(adata, network, epochs=pretrain_epochs, optimizer=pretrain_optimizer,
+    pretrain(adata, network, epochs=pretrain_epochs, optimizer=pretrain_optimizer,
              learning_rate=pretrain_learning_rate, verbose=verbose)
     network.model = model
     print(f"Pretraining complete in {time.time() - start_pretrain:.2f}s")
@@ -434,7 +434,7 @@ def ramp_dec_train(adata, network, output_dir=None, save_weights=True, save_inte
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
                     topo_size=topo_size,
-                    weight_topo_loss=weight_topo_loss,
+                    pg_dist=pg_dist, order=order,
                     topo_latent_mode=topo_latent_mode,
                     k=k, t=t, topo_input_batch=topo_input_batch,
                     rips_layer=rips_layer

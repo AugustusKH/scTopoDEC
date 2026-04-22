@@ -22,7 +22,7 @@ except ImportError:
                       ' at https://gudhi.inria.fr/python/latest/installation.html to install.')
 
 from .io import read_dataset, normalize
-from .train import ae_train, dec_train, ramp_dec_train
+from .train import pretrain, train, ramp_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
 
 tf.keras.backend.clear_session()
@@ -73,7 +73,8 @@ def scTopoDEC(adata,                        # single-cell args
         homology_dim=1,                     # Topology args
         maximum_edge_length=2.,
         topo_size=64,
-        weight_topo_loss=True,
+        pg_dist='weight_mse',
+        order=1.,
         topo_input_mode='pca',
         topo_latent_mode='raw',
         n_components=30, 
@@ -230,10 +231,11 @@ def scTopoDEC(adata,                        # single-cell args
         topo_size : `integer`, optional (default: 64)
             The number of cells randomly sampled to estimate the density 
             scale, ensuring the loss is computationally efficient and scale-invariant.
-        weight_topo_loss : `bool`, optional (default: True)
-            If True, the topological loss is calculated as a Weighted Mean Squared Error (WMSE), 
-            where each feature's contribution to the gradient is scaled by its persistence (Death-Birth) 
-            in the input space.
+        pg_dist : `string`, optional (default: 'weight_mse') 
+            Method used to measure persistent diagram distance: 'mse', Mean Squared Error (MSE); 
+            'weight_mse', weighted MSE; 'wd', Wasserstein distance.
+        order : `float`, optional (default: 1.)
+            Wasserstein exponent q (1 <= q < infinity).
         topo_input_mode : `string`, optional (default: 'pca')
             The method used to generate the ground-truth topological representation from the 
             input data. Options include coordinate-based point clouds ('pca', 'umap', 'raw') or 
@@ -343,52 +345,52 @@ def scTopoDEC(adata,                        # single-cell args
     if ae_type == 'dec':
         # Clustering pathway
         if ramp_mode:
-            ramp_dec_train(adata_train, network, 
-                           optimizer=optimizer, 
-                           learning_rate=learning_rate, 
-                           epochs=epochs, 
-                           batch_size=batch_size,
-                           loss_weights=loss_weights,
-                           update_interval=update_interval,
-                           tol=tol,
-                           early_stop_patience=early_stop,
-                           cluster_early_stop=cluster_early_stop,
-                           ground_truth=ground_truth,
-                           res_ramp=res_ramp,
-                           homology_dim=homology_dim, 
-                           maximum_edge_length=maximum_edge_length,
-                           topo_size=topo_size,
-                           weight_topo_loss=weight_topo_loss,
-                           topo_input_mode=topo_input_mode, 
-                           topo_latent_mode=topo_latent_mode, 
-                           n_components=n_components, k=k, t=t,
-                           verbose=verbose,
-                           **training_kwds)
+            ramp_train(adata_train, network, 
+                       optimizer=optimizer, 
+                       learning_rate=learning_rate, 
+                       epochs=epochs, 
+                       batch_size=batch_size,
+                       loss_weights=loss_weights,
+                       update_interval=update_interval,
+                       tol=tol,
+                       early_stop_patience=early_stop,
+                       cluster_early_stop=cluster_early_stop,
+                       ground_truth=ground_truth,
+                       res_ramp=res_ramp,
+                       homology_dim=homology_dim, 
+                       maximum_edge_length=maximum_edge_length,
+                       topo_size=topo_size,
+                       pg_dist=pg_dist, order=order,
+                       topo_input_mode=topo_input_mode, 
+                       topo_latent_mode=topo_latent_mode, 
+                       n_components=n_components, k=k, t=t,
+                       verbose=verbose,
+                       **training_kwds)
         else:
-            dec_train(adata_train, network, 
-                      optimizer=optimizer, 
-                      learning_rate=learning_rate, 
-                      epochs=epochs, 
-                      batch_size=batch_size,
-                      loss_weights=loss_weights,
-                      update_interval=update_interval,
-                      tol=tol,
-                      reduce_lr_patience=reduce_lr,
-                      early_stop_patience=early_stop,
-                      cluster_early_stop=cluster_early_stop,
-                      homology_dim=homology_dim, 
-                      maximum_edge_length=maximum_edge_length,
-                      ground_truth=ground_truth,
-                      topo_size=topo_size,
-                      weight_topo_loss=weight_topo_loss,
-                      topo_input_mode=topo_input_mode, 
-                      topo_latent_mode=topo_latent_mode, 
-                      n_components=n_components, k=k, t=t,
-                      verbose=verbose,
-                      **training_kwds)
+            train(adata_train, network, 
+                  optimizer=optimizer, 
+                  learning_rate=learning_rate, 
+                  epochs=epochs, 
+                  batch_size=batch_size,
+                  loss_weights=loss_weights,
+                  update_interval=update_interval,
+                  tol=tol,
+                  reduce_lr_patience=reduce_lr,
+                  early_stop_patience=early_stop,
+                  cluster_early_stop=cluster_early_stop,
+                  homology_dim=homology_dim, 
+                  maximum_edge_length=maximum_edge_length,
+                  ground_truth=ground_truth,
+                  topo_size=topo_size,
+                  pg_dist=pg_dist, order=order,
+                  topo_input_mode=topo_input_mode, 
+                  topo_latent_mode=topo_latent_mode, 
+                  n_components=n_components, k=k, t=t,
+                  verbose=verbose,
+                  **training_kwds)
     else:
         # Imputation pathway
-        ae_train(adata_train, network, 
+        pretrain(adata_train, network, 
                  optimizer=pretrain_optimizer, 
                  learning_rate=pretrain_learning_rate, 
                  epochs=pretrain_epochs, 
