@@ -83,11 +83,13 @@ def get_topo_representation(data, input_mode='pca', latent_mode='raw', n_compone
             return tg.get_latent_geometry(data, k=None)
         elif latent_mode == 'knn':
             # Symmetric 0/1 Adjacency matrix
-            return tg.get_latent_geometry(data, k=k, binary_nearest=True)
+            knn_matrix = tg.get_latent_geometry(data, k=k, binary_nearest=True)
+            return tf.cast(knn_matrix, tf.float32)
         elif latent_mode in ["eff_res", "diffusion"]:
             # Warning: Running these in train_step is computationally expensive
             knn_matrix = tg.get_latent_geometry(data, k=k, binary_nearest=True)
-            return tg.get_dist(knn_matrix, distance=latent_mode, t=t)
+            dist_matrix = tg.get_dist(knn_matrix, distance=latent_mode, t=t)
+            return tf.cast(dist_matrix, tf.float32)
             
     # --- TRACK 2: INPUT SPACE (Static/Scanpy/NumPy) ---
     else:
