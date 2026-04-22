@@ -160,7 +160,7 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
           verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
           pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
           cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
-          topo_size=64, pg_dist='weight_mse', order=1., topo_input_mode='pca', 
+          topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
           topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
    
     model = network.model
@@ -317,7 +317,7 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
                pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
                cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
-               pg_dist='weight_mse', order=1., topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
+               pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
                k=15, t=8, **kwds):
    
     model = network.model

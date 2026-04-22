@@ -139,7 +139,7 @@ def soft_kmeans_loss(z, mu):
     return loss_sk
 
 
-def topo_loss(x, z, rips_layer, sample_size, pg_dist='weight_mse', order=1.):
+def topo_loss(x, z, rips_layer, sample_size, pg_dist='wd', order=1.):
     """
     Calculate topological loss between two different spaces using
     the persistence maximization logic to a manifold preservation loss.
@@ -151,7 +151,7 @@ def topo_loss(x, z, rips_layer, sample_size, pg_dist='weight_mse', order=1.):
     sample_size: The number of cells randomly sampled to estimate the density 
         scale, ensuring the loss is computationally efficient and scale-invariant.
     pg_dist : Method used to measure persistent diagram distance.
-        'mse', mean square error (MSE); 'weight_mse', weighted MSE;
+        'mse', Mean squared Error (MSE); 'weight_mse', weighted MSE;
         'wd', Wasserstein distance
     order : Wasserstein exponent q (1 <= q < infinity). 
 
@@ -185,7 +185,7 @@ def topo_loss(x, z, rips_layer, sample_size, pg_dist='weight_mse', order=1.):
             enable_autodiff=True,
             keep_essential_parts=False # Essential for autodiff compatibility
         )
-        
+
         return loss
     
     else:

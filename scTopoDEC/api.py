@@ -73,7 +73,7 @@ def scTopoDEC(adata,                        # single-cell args
         homology_dim=1,                     # Topology args
         maximum_edge_length=2.,
         topo_size=64,
-        pg_dist='weight_mse',
+        pg_dist='wd',
         order=1.,
         topo_input_mode='pca',
         topo_latent_mode='raw',
@@ -231,7 +231,7 @@ def scTopoDEC(adata,                        # single-cell args
         topo_size : `integer`, optional (default: 64)
             The number of cells randomly sampled to estimate the density 
             scale, ensuring the loss is computationally efficient and scale-invariant.
-        pg_dist : `string`, optional (default: 'weight_mse') 
+        pg_dist : `string`, optional (default: 'wd') 
             Method used to measure persistent diagram distance: 'mse', Mean Squared Error (MSE); 
             'weight_mse', weighted MSE; 'wd', Wasserstein distance.
         order : `float`, optional (default: 1.)
