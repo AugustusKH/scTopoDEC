@@ -33,6 +33,7 @@ class AnnSequence(Sequence):
         # return an (X, Y) pair
         return {'count': batch, 'size_factors': batch_sf}, batch
 
+
 def is_raw_counts(matrix):
     """Checks if a matrix contains unnormalized integer counts."""
     # Check a small subset for speed
@@ -44,6 +45,7 @@ def is_raw_counts(matrix):
     
     # Check if values are non-negative integers
     return np.all(data >= 0) and np.all(np.equal(np.mod(data, 1), 0))
+
 
 def read_dataset(adata, transpose=False, test_split=False, copy=False, check_counts=True):
     if isinstance(adata, sc.AnnData):
@@ -125,6 +127,7 @@ def read_genelist(filename):
 
     return genelist
 
+
 def write_text_matrix(matrix, filename, rownames=None, colnames=None, transpose=False):
     if transpose:
         matrix = matrix.T
@@ -135,6 +138,7 @@ def write_text_matrix(matrix, filename, rownames=None, colnames=None, transpose=
                                                                   index=(rownames is not None),
                                                                   header=(colnames is not None),
                                                                   float_format='%.6f')
+
 
 def read_pickle(inputfile):
     with open(inputfile, "rb") as f:

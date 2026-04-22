@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
+from sklearn import metrics
+
 
 def cluster_acc(y_true, y_pred):
     """
@@ -28,3 +30,28 @@ def cluster_acc(y_true, y_pred):
     row_ind, col_ind = linear_sum_assignment(w.max() - w)
     
     return sum([w[i, j] for i, j in zip(row_ind, col_ind)]) * 1.0 / y_pred.size
+
+
+def model_eval(adata, model_clusters, ground_truth):
+    """
+    Calculate clustering performane of models. 
+
+    # Arguments
+    adata : class:`anndata.AnnData`
+        A single-cell object.
+    model_clusters : `str`
+        A key in `adata.obs` containing cluster labels predicted from models.
+    ground_truth : `str`
+        A key in `adata.obs` containing known cell-type or cluster labels.
+
+    # Return
+        clustering accuracy, NMI, ARI
+    """
+    y_pred = adata.obs[model_clusters].values
+    y_true = adata.obs[ground_truth].values
+    acc = np.round(cluster_acc(y_true, y_pred), 5)
+    nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
+    ari = np.round(metrics.adjusted_rand_score(y_true, y_pred), 5)
+    print(f"Clustering performance: ACC={acc}, NMI={nmi}, ARI={ari}")
+    
+    return acc, nmi, ari 
