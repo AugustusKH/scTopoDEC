@@ -227,7 +227,7 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
             y_pred = q.argmax(1)
 
             # --- Evaluation Block ---
-            if ground_truth is not None and ground_truth in adata.obs:
+            if verbose and ground_truth is not None and ground_truth in adata.obs:
                 y_true = adata.obs[ground_truth].values
                 acc = np.round(cluster_acc(y_true, y_pred), 5)
                 nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
@@ -395,7 +395,7 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                 y_pred = q.argmax(1)
 
                 # --- Evaluation block ---
-                if ground_truth is not None and ground_truth in adata.obs:
+                if verbose and ground_truth is not None and ground_truth in adata.obs:
                     y_true = adata.obs[ground_truth].values
                     acc = np.round(cluster_acc(y_true, y_pred), 5)
                     nmi = np.round(metrics.normalized_mutual_info_score(y_true, y_pred), 5)
