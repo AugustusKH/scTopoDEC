@@ -12,7 +12,7 @@ from . import io
 from .utils import compute_target_distribution, get_topo_representation
 from .network import network_options
 from .layers import RipsLayer
-from .loss import soft_kmeans_loss, topo_loss
+from .loss import kmeans_loss, soft_kmeans_loss, topo_loss
 from .metric import cluster_acc
 
 
@@ -22,8 +22,8 @@ from .metric import cluster_acc
 
 #@tf.function
 def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
-               ae_loss_fn, opt_dec, loss_weights, topo_size, pg_dist, order,
-               topo_latent_mode, k, t, topo_input_batch=None, rips_layer=None):
+               ae_loss_fn, opt_dec, loss_weights, soft_kmean, topo_size, pg_dist, 
+               order, topo_latent_mode, k, t, topo_input_batch=None, rips_layer=None):
     """
     Executes a single training iteration (batch update) for scTopoDEC.
     
@@ -46,7 +46,10 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
         # Optional soft k-mean loss
         l_sk = tf.constant(0.0, dtype=tf.float32)
         if loss_weights[2] > 0:
-            l_sk = soft_kmeans_loss(z, mu)
+            if soft_kmean: 
+                l_sk = soft_kmeans_loss(z, mu)
+            else:
+                l_sk = kmeans_loss(z, mu)
 
         # Optional topological loss
         l_topo = tf.constant(0.0, dtype=tf.float32)
@@ -156,11 +159,11 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 
 def train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
           optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
-          batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), use_raw_as_output=True, 
-          verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam', 
-          pretrain_learning_rate=0.01, reduce_lr_patience=10, early_stop_patience=15, 
-          cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
-          topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
+          batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), soft_kmean=True, 
+          use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
+          pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
+          early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
+          maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
           topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
    
     model = network.model
@@ -266,6 +269,7 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
                 ae_loss_fn=ae_loss_fn, 
                 opt_dec=opt_dec, 
                 loss_weights=loss_weights,
+                soft_kmean=soft_kmean,
                 topo_size=topo_size,
                 pg_dist=pg_dist, order=order,
                 topo_latent_mode=topo_latent_mode,
@@ -275,7 +279,7 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
 
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
-                  f"L_kl: {loss_vals[2]:.4f}, L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
+                  f"L_kl: {loss_vals[2]:.4f}, L_km: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
             
         current_loss = loss_vals[0]
 
@@ -314,12 +318,12 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
 
 def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
                optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
-               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), use_raw_as_output=True,  
-               verbose=True, ground_truth=None, pretrain_epochs=200, pretrain_optimizer='adam',
-               pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), early_stop_patience=15, 
-               cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., topo_size=64, 
-               pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', n_components=30, 
-               k=15, t=8, **kwds):
+               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), soft_kmean=True, 
+               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
+               pretrain_optimizer='adam', pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), 
+               early_stop_patience=15, cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
+               topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', 
+               n_components=30, k=15, t=8, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -435,6 +439,7 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                     ae_loss_fn=ae_loss_fn, 
                     opt_dec=opt_dec, 
                     loss_weights=current_weights,
+                    soft_kmean=soft_kmean,
                     topo_size=topo_size,
                     pg_dist=pg_dist, order=order,
                     topo_latent_mode=topo_latent_mode,
@@ -458,7 +463,7 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
             if verbose:
                 print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, "
                       f"L_zinb: {loss_vals[1]:.4f}, L_kl: {loss_vals[2]:.4f}, "
-                      f"L_sk: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
+                      f"L_km: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
                 
     # --- Restore best weights ---
     if best_weights is not None:

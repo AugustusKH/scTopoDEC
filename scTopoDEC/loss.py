@@ -100,6 +100,36 @@ class ZINB(NB):
             result = _reduce_mean(result) if self.masking else ops.mean(result)
 
         return _nan2inf(result)
+    
+
+def kmeans_loss(z, mu):
+    """
+    Calculate k-mean clustering loss.
+
+    # Arguments
+    z: Latent representations (batch_size, latent_dim)
+    mu: Cluster centroid (n_clusters, latent_dim)
+    
+    # Return
+        loss scalar
+    """
+    # Calculate lambda prime
+    diff = ops.expand_dims(z, axis=1) - ops.expand_dims(mu, axis=0)
+    dist_sq = ops.sum(ops.square(diff), axis=-1)
+    dist_min = ops.reshape(ops.min(dist_sq, axis=1), [-1, 1])
+    temp_dist = dist_sq - dist_min # Subtract minimum distance to prevent underflow
+    lambda_prime = ops.exp(-temp_dist) + 1e-12
+    lambda_prime = lambda_prime / ops.sum(lambda_prime, axis=1, keepdims=True)
+
+    # Calculate lambda 
+    lambda_ij = ops.square(lambda_prime) + 1e-12
+    lambda_ij = lambda_ij / (ops.sum(lambda_ij, axis=1, keepdims=True) + 1e-12)
+
+    # Calculate Lk
+    batch_size = ops.cast(ops.shape(z)[0], "float32")   
+    loss_k = ops.sum(lambda_ij * temp_dist) / batch_size
+
+    return loss_k
 
 
 def soft_kmeans_loss(z, mu):

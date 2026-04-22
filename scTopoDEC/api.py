@@ -55,6 +55,7 @@ def scTopoDEC(adata,                        # single-cell args
         res_ramp=(0.1, 0.5, 1.0),
         ramp_mode=False,
         cluster_early_stop=False,
+        soft_kmean=True,
         training_kwds={},
         pretrain_epochs=200,                # Pretrain args    
         pretrain_optimizer='adam',
@@ -186,6 +187,8 @@ def scTopoDEC(adata,                        # single-cell args
             ensure stable convergence.
         cluster_early_stop : `bool`, optional (default: False)
             If True, enable patience for early stopping in clustering training step. 
+        soft_kmean : `bool`, optional (default: True)
+            If True, use soft k-mean loss function, else use standard k-mean loss function.
         training_kwds : `dict`, optional
             Additional arguments passed to the training function, i.e. dec_train().
         pretrain_epochs : `int`, optional (default: 200)
@@ -356,6 +359,7 @@ def scTopoDEC(adata,                        # single-cell args
                        tol=tol,
                        early_stop_patience=early_stop,
                        cluster_early_stop=cluster_early_stop,
+                       soft_kmean=soft_kmean,
                        ground_truth=ground_truth,
                        res_ramp=res_ramp,
                        homology_dim=homology_dim, 
@@ -379,6 +383,7 @@ def scTopoDEC(adata,                        # single-cell args
                   reduce_lr_patience=reduce_lr,
                   early_stop_patience=early_stop,
                   cluster_early_stop=cluster_early_stop,
+                  soft_kmean=soft_kmean,
                   homology_dim=homology_dim, 
                   maximum_edge_length=maximum_edge_length,
                   ground_truth=ground_truth,
