@@ -320,7 +320,7 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
                batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), soft_kmean=True, 
                use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
-               pretrain_optimizer='adam', pretrain_learning_rate=0.01, res_ramp=(0.1, 0.5, 1.0), 
+               pretrain_optimizer='adam', pretrain_learning_rate=0.01, res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0), 
                early_stop_patience=15, cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
                topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', 
                n_components=30, k=15, t=8, **kwds):
@@ -374,17 +374,17 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
     best_weights = None
 
     for res_idx, current_res in enumerate(res_ramp):
-        print(f"\n>>> Phase {res_idx+1}: Scaling Clustering/SoftK weights by {current_res}")
+        print(f"\n>>> Phase {res_idx+1}: Scaling Clustering/Kmean weights by {current_res}")
 
         # Reset patience and best loss for each new resolution phase
         es_wait = 0
         phase_best_loss = np.inf
         
-        # Scale KL and SoftK weights by the current resolution factor
+        # Scale KL and Kmean weights by the current resolution factor
         current_weights = [
             loss_weights[0],                # ZINB stays constant
             loss_weights[1] * current_res,  # KL scales
-            loss_weights[2] * current_res,  # SoftK scales
+            loss_weights[2] * current_res,  # Kmean scales
             loss_weights[3]                 # Topo
         ]
         

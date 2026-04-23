@@ -52,7 +52,7 @@ def scTopoDEC(adata,                        # single-cell args
         update_interval=10,
         tol=1e-3,
         ground_truth=None,
-        res_ramp=(0.1, 0.5, 1.0),
+        res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0),
         ramp_mode=False,
         cluster_early_stop=True,
         soft_kmean=False,
@@ -174,7 +174,7 @@ def scTopoDEC(adata,                        # single-cell args
             A key in `adata.obs` containing known cell-type labels. If provided, 
             the model will output Accuracy (ACC), Normalized Mutual Info (NMI), 
             and Adjusted Rand Index (ARI) during training to monitor performance.
-        res_ramp : `list`, optional (default: (0.1, 0.5, 1.0))
+        res_ramp : `list`, optional (default: (0.0, 0.1, 0.2, 0.5, 1.0))
             A list of scaling factors for the clustering loss weight. This implements 
             a "curriculum learning" strategy where the model first focuses on 
             reconstruction (low values) and gradually increases the pressure to 
