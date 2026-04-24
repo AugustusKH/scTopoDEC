@@ -12,33 +12,69 @@ def main():
     parser.add_argument('input', type=str, help='Path to input .h5ad file')
     parser.add_argument('--output', type=str, default='scTopoDEC_results.h5ad', help='Output filename')
 
-    # 2. Network achitecture args
+    # 2. Load and save weights
+    parser.add_argument('--train_output_dir', type=str, default=None, 
+                        help='Directory to save final training weights and metadata')
+    parser.add_argument('--pretrain_output_dir', type=str, default=None, 
+                        help='Directory to save pretraining checkpoints')
+    parser.add_argument('--initial_pretrain_weights', type=str, default=None, 
+                        help='Path to existing .weights.h5 file to skip pretraining')
+    parser.add_argument('--initial_train_weights', type=str, default=None, 
+                        help='Path to existing .weights.h5 file to resume clustering')
+    parser.add_argument('--save_pretrain_weights', action='store_true', help='Enable pretrain saving')
+    parser.add_argument('--save_train_weights', action='store_true', help='Enable final weight saving')
+
+    # 3. Network achitecture args
     parser.add_argument('--ae_type', type=str, default='dec', choices=['ae', 'zinb', 'dec'], help='Model type')
+    parser.add_argument('--mode', type=str, default='clustering', choices=['clustering', 'denoise', 'latent', 'full'], 
+                        help='Mode type')
     parser.add_argument('--hidden_size', type=str, default="(256, 64, 32, 64, 256)", 
                         help='Network architecture as a tuple string')
     parser.add_argument('--loss_weights', type=str, default="(1, 1, 0, 1.0)", 
                         help='Loss weights (ZINB, Cluster, SoftK, Topo) as a tuple string')
     parser.add_argument('--batchnorm', type=bool, default=True, help='Use Batch Normalization')
     parser.add_argument('--activation', type=str, default='relu', help='Activation function')
+    parser.add_argument('--init', type=str, default='glorot_uniform', help='Weight initialization method')
 
-    # 3. Clustering and training args
+    # 4. Clustering and training args
     parser.add_argument('--n_clusters', type=int, default=10, help='Number of clusters')
     parser.add_argument('--ramp_mode', action='store_true', help='Enable iterative resolution ramping')
-    parser.add_argument('--res_ramp', type=str, default="(0.1, 0.5, 1.0)", help='Ramping factors')
+    parser.add_argument('--res_ramp', type=str, default="(0.0, 0.1, 0.2, 0.5, 1.0)", help='Ramping factors')
     parser.add_argument('--epochs', type=int, default=300, help='Max training epochs')
     parser.add_argument('--pretrain_epochs', type=int, default=200, help='Autoencoder pretraining epochs')
     parser.add_argument('--lr', type=float, default=0.001, help='Learning rate')
     parser.add_argument('--pretrain_lr', type=float, default=0.01, help='Pretraining learning rate')
     parser.add_argument('--update_interval', type=int, default=10, help='Epochs between target distribution updates')
     parser.add_argument('--tol', type=float, default=1e-3, help='Convergence tolerance')
+    parser.add_argument('--no_cluster_stop', action='store_false', dest='cluster_early_stop', 
+                        help='Disable early stopping during the clustering/DEC phase')
+    parser.set_defaults(cluster_early_stop=True)
+    parser.add_argument('--cluster_patience', type=int, default=15, 
+                        help='Patience for clustering early stopping')
 
-    # 4. Topology specific args 
+    # 5. Topology specific args 
     parser.add_argument('--homology_dim', type=int, default=1, choices=[0, 1, 2], 
                         help='Dimension of persistent homology (1 for loops/trajectories)')
     parser.add_argument('--maximum_edge_length', type=float, default=2.0, 
                         help='Filtration cutoff (prevents OOM on large datasets)')
+    parser.add_argument('--topo_size', type=int, default=64, 
+                        help='Number of cells sampled for topological loss calculation')
+    parser.add_argument('--pg_dist', type=str, default='wd', choices=['wd', 'mse', 'weight_mse'], 
+                        help='Distance metric for persistent diagrams')
+    parser.add_argument('--order', type=float, default=1.0, 
+                        help='Wasserstein exponent q for diagram distance')
+    parser.add_argument('--topo_input_mode', type=str, default='pca', 
+                        help='Ground-truth manifold mode (pca, umap, pca_dist, umap_dist, knn, eff_res, diffusion)')
+    parser.add_argument('--topo_latent_mode', type=str, default='raw', 
+                        help='Latent space representation mode (raw, inner_product, euclid_dist, knn, eff_res, diffusion)')
+    parser.add_argument('--n_components', type=int, default=30, 
+                        help='Dimensions to retain for topological ground-truth')
+    parser.add_argument('--k', type=int, default=15, 
+                        help='Nearest neighbors for graph construction')
+    parser.add_argument('--t', type=int, default=8, 
+                        help='Diffusion time for transition matrix iterations')
     
-    # 5. Data processing args
+    # 6. Data processing args
     parser.add_argument('--n_top_genes', type=int, default=2000, help='Number of HVGs to use')
     parser.add_argument('--no_hvg', action='store_false', dest='use_hvg', help='Disable HVG selection')
     parser.set_defaults(use_hvg=True)
@@ -54,6 +90,36 @@ def main():
                         help='Directory to save hyperopt results')
     parser.add_argument('--transpose', action='store_true', 
                         help='Transpose input matrix (cells as columns)')
+    
+    # 7. Regularization and noise 
+    parser.add_argument('--noise_sd', type=float, default=0.0, 
+                        help='Standard deviation of Gaussian noise added to input')
+    parser.add_argument('--hidden_dropout', type=float, default=0.0, 
+                        help='Dropout rate applied to hidden layers (0.0 to 1.0)')
+    parser.add_argument('--alpha', type=float, default=1.0, 
+                        help='Degrees of freedom for Student’s t-distribution in clustering')
+
+    # 8. Preprocessing and normalization
+    parser.add_argument('--no_norm', action='store_false', dest='normalize_per_cell', 
+                        help='Disable library size normalization')
+    parser.set_defaults(normalize_per_cell=True)
+    parser.add_argument('--no_scale', action='store_false', dest='scale', 
+                        help='Disable input scaling')
+    parser.set_defaults(scale=True)
+    parser.add_argument('--no_log', action='store_false', dest='log1p', 
+                        help='Disable log(1+x) transformation')
+    parser.set_defaults(log1p=True)
+
+    # 9. Optimizer and stability (DEC/pretrain tuning)
+    parser.add_argument('--optimizer', type=str, default='adam', help='Optimizer for DEC')
+    parser.add_argument('--pretrain_optimizer', type=str, default='adam', help='Optimizer for Pretraining')
+    parser.add_argument('--soft_kmean', action='store_true', 
+                        help='Use soft k-mean loss instead of standard DEC sharpening')
+    parser.add_argument('--reduce_lr', type=int, default=10, 
+                        help='Patience for Reducing Learning Rate on plateau')
+    parser.add_argument('--early_stop', type=int, default=15, 
+                        help='Patience for Early Stopping based on validation loss')
+    parser.add_argument('--batch_size', type=int, default=32, help='Batch size for training')
 
     args = parser.parse_args()
 
@@ -61,6 +127,9 @@ def main():
     try:
         print(f"Loading data: {args.input}")
         adata = sc.read(args.input)
+        if args.transpose:
+            print("Transposing input matrix...")
+            adata = adata.T
     except Exception as e:
         print(f"Error loading file: {e}")
         sys.exit(1)
@@ -86,24 +155,54 @@ def main():
         scTopoDEC(
             adata,
             ae_type=args.ae_type,
+            mode=args.mode,
             n_clusters=args.n_clusters,
-            use_hvg=args.use_hvg,
-            n_top_genes=args.n_top_genes,
+            alpha=args.alpha,
             hidden_size=hidden_size_obj,
             loss_weights=loss_weights_obj,
+            noise_sd=args.noise_sd,
+            hidden_dropout=args.hidden_dropout,
             batchnorm=args.batchnorm,
             activation=args.activation,
+            init=args.init,
+            soft_kmean=args.soft_kmean,
+            use_hvg=args.use_hvg,
+            n_top_genes=args.n_top_genes,
+            normalize_per_cell=args.normalize_per_cell,
+            scale=args.scale,
+            log1p=args.log1p,
             epochs=args.epochs,
+            optimizer=args.optimizer,
             learning_rate=args.lr,
             update_interval=args.update_interval,
             tol=args.tol,
+            cluster_early_stop=args.cluster_early_stop, 
+            early_stop=args.cluster_patience,
             pretrain_epochs=args.pretrain_epochs,
+            pretrain_optimizer=args.pretrain_optimizer,
             pretrain_learning_rate=args.pretrain_lr,
+            reduce_lr=args.reduce_lr,
+            early_stop=args.early_stop,
+            batch_size=args.batch_size,
             ground_truth=args.ground_truth,
             ramp_mode=args.ramp_mode,
             res_ramp=res_ramp_obj,
             homology_dim=args.homology_dim,
             maximum_edge_length=args.maximum_edge_length,
+            topo_size=args.topo_size,
+            pg_dist=args.pg_dist,
+            order=args.order,
+            topo_input_mode=args.topo_input_mode,
+            topo_latent_mode=args.topo_latent_mode,
+            n_components=args.n_components,
+            k=args.k,
+            t=args.t,
+            train_output_dir=args.train_output_dir,
+            pretrain_output_dir=args.pretrain_output_dir,
+            initial_pretrain_weights=args.initial_pretrain_weights,
+            initial_train_weights=args.initial_train_weights,
+            save_pretrain_weights=args.save_pretrain_weights,
+            save_train_weights=args.save_train_weights,
             copy=False,
             verbose=True
         )

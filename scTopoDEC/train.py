@@ -78,10 +78,11 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
 # Pretraining (ZINB-autoencoder)
 # ==============================================================================
 
-def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.001,
-          initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
-          use_raw_as_output=True, early_stop=15, batch_size=256, clip_grad=1.0, save_weights=True,
-          validation_split=0.1, tensorboard=False, verbose=True, **kwds):
+def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.01,
+             initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
+             use_raw_as_output=True, early_stop=15, batch_size=256, clip_grad=1.0, 
+             save_weights=False, validation_split=0.1, tensorboard=False, verbose=True, 
+             **kwds):
    
     model = network.model
     loss_fn = network.loss
@@ -95,7 +96,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 
     if initial_weights and os.path.exists(initial_weights):
         if verbose:
-            print(f"Restoring weights from: {initial_weights}")
+            print(f"Restoring pretrain weights from: {initial_weights}")
         network.load_weights(initial_weights) 
     elif initial_weights:
         print(f"Warning: {initial_weights} not found. Training from scratch.")
@@ -103,7 +104,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
     callbacks = []
 
     if save_weights and output_dir is not None:
-        ckpt_path = os.path.join(output_dir, "weights.weights.h5")
+        ckpt_path = os.path.join(output_dir, "pretrain_weights.weights.h5")
         checkpointer = keras.callbacks.ModelCheckpoint(
             filepath=ckpt_path,
             verbose=verbose,
@@ -157,10 +158,11 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 # Clustering (DEC)
 # ==============================================================================
 
-def train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
-          optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
+def train(adata, network, train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
+          save_train_interval=5, optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
           batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), soft_kmean=True, 
-          use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
+          use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_output_dir=None, 
+          initial_pretrain_weights=None, save_pretrain_weights=False, pretrain_epochs=200, 
           pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
           early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
           maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
@@ -177,12 +179,23 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
     start_pretrain = time.time()
 
     network.model = network.zinb_ae # Temporarily point network.model to the AE version
-    pretrain(adata, 
-             network, 
-             epochs=pretrain_epochs,
-             optimizer=pretrain_optimizer,
-             learning_rate=pretrain_learning_rate,
-             verbose=verbose)
+
+    # Load pretrain weight if available
+    if initial_pretrain_weights and os.path.exists(initial_pretrain_weights):
+        print(f"Loading pre-trained weights from {initial_pretrain_weights}...")
+        network.load_weights(initial_pretrain_weights)
+    else:
+        print("No pre-trained weights found. Starting fresh pre-training...")
+        pretrain(adata, 
+                network, 
+                output_dir=pretrain_output_dir,
+                initial_weights=initial_pretrain_weights,
+                save_weights=save_pretrain_weights,
+                epochs=pretrain_epochs,
+                optimizer=pretrain_optimizer,
+                learning_rate=pretrain_learning_rate,
+                verbose=verbose)
+        
     network.model = model
     end_pretrain = time.time() 
     print(f"Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
@@ -195,6 +208,14 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
     y_pred = kmeans.fit_predict(latent_feat)
     y_pred_last = np.copy(y_pred)
     model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
+
+    # Load train weight if available
+    if initial_train_weights and os.path.exists(initial_train_weights):
+        if verbose:
+            print(f"Restoring training weights from: {initial_train_weights}")
+        network.load_weights(initial_train_weights)
+    else:
+        print(f"Warning: {initial_train_weights} not found. Starting training from K-Means init.")
 
     # 3. Setup Optimizer
     opt_dec = optimizers.get(optimizer)
@@ -288,6 +309,13 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
             best_loss = current_loss
             best_weights = [tf.identity(w) for w in model.get_weights()]
             wait, es_wait = 0, 0
+
+            # Save the best weights to disk
+            if save_train_weights and train_output_dir is not None:
+                os.makedirs(train_output_dir, exist_ok=True)
+                save_path = os.path.join(train_output_dir, "best_train_weights.weights.h5")
+                network.save_weights(save_path)
+
         else:
             wait += 1
             es_wait += 1
@@ -305,6 +333,11 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
                 print(f"Epoch {epoch}: Early stopping triggered.")
                 break
 
+        # Save weight at specific intervals
+        if save_train_weights and train_output_dir is not None and epoch % save_train_interval == 0:
+            interval_path = os.path.join(train_output_dir, f"epoch_{epoch}_weights.weights.h5")
+            network.save_weights(interval_path)
+
     # --- RESTORE BEST WEIGHTS ---
     if best_weights is not None:
         if verbose: print("Restoring best weights from training...")
@@ -316,13 +349,13 @@ def train(adata, network, output_dir=None, save_weights=True, save_interval=5,
     return y_pred
 
 
-def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval=5, 
-               optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
-               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), soft_kmean=True, 
-               use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_epochs=200, 
-               pretrain_optimizer='adam', pretrain_learning_rate=0.01, res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0), 
-               early_stop_patience=15, cluster_early_stop=False, homology_dim=1, maximum_edge_length=2., 
-               topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', 
+def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
+               save_train_interval=5, optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
+               batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), soft_kmean=True, use_raw_as_output=True, 
+               verbose=True, ground_truth=None, pretrain_output_dir=None, initial_pretrain_weights=None, 
+               save_pretrain_weights=False, pretrain_epochs=200, pretrain_optimizer='adam', pretrain_learning_rate=0.01, 
+               res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0), early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
+               maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', 
                n_components=30, k=15, t=8, **kwds):
    
     model = network.model
@@ -335,8 +368,23 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
     print("\n...Pretraining Autoencoder...")
     start_pretrain = time.time()
     network.model = network.zinb_ae 
-    pretrain(adata, network, epochs=pretrain_epochs, optimizer=pretrain_optimizer,
-             learning_rate=pretrain_learning_rate, verbose=verbose)
+
+    # Load pretrain weight if available
+    if initial_pretrain_weights and os.path.exists(initial_pretrain_weights):
+        print(f"Loading pre-trained weights from {initial_pretrain_weights}...")
+        network.load_weights(initial_pretrain_weights)
+    else:
+        print("No pre-trained weights found. Starting fresh pre-training...")
+        pretrain(adata, 
+                network, 
+                output_dir=pretrain_output_dir,
+                initial_weights=initial_pretrain_weights,
+                save_weights=save_pretrain_weights,
+                epochs=pretrain_epochs,
+                optimizer=pretrain_optimizer,
+                learning_rate=pretrain_learning_rate,
+                verbose=verbose)
+        
     network.model = model
     print(f"Pretraining complete in {time.time() - start_pretrain:.2f}s")
 
@@ -348,6 +396,14 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
     y_pred = kmeans.fit_predict(latent_feat)
     y_pred_last = np.copy(y_pred)
     clustering_layer.set_weights([kmeans.cluster_centers_])
+
+    # Load train weight if available
+    if initial_train_weights and os.path.exists(initial_train_weights):
+        if verbose:
+            print(f"Restoring training weights from: {initial_train_weights}")
+        network.load_weights(initial_train_weights)
+    else:
+        print(f"Warning: {initial_train_weights} not found. Starting training from K-Means init.")
 
     # 3. Setup Optimizer and Manual Train Step
     opt_dec = optimizers.get(optimizer)
@@ -454,11 +510,23 @@ def ramp_train(adata, network, output_dir=None, save_weights=True, save_interval
                 phase_best_loss = current_loss
                 best_weights = [tf.identity(w) for w in model.get_weights()]
                 es_wait = 0
+
+                # Save the best weights to disk
+                if save_train_weights and train_output_dir is not None:
+                    os.makedirs(train_output_dir, exist_ok=True)
+                    save_path = os.path.join(train_output_dir, f"best_res_{current_res}_weights.weights.h5")
+                    network.save_weights(save_path)
+
             else:
                 es_wait += 1
                 if es_wait >= early_stop_patience and cluster_early_stop:
                     print(f"Phase {current_res} early stopping at epoch {epoch}")
                     break
+
+            # Save weight at specific intervals
+            if save_train_weights and train_output_dir is not None and epoch % save_train_interval == 0:
+                interval_path = os.path.join(train_output_dir, f"res_{res_idx}_ep_{epoch}.weights.h5")
+                network.save_weights(interval_path)
 
             if verbose:
                 print(f"Res {current_res} Ep {epoch} - Total L: {loss_vals[0]:.4f}, "

@@ -80,7 +80,13 @@ def scTopoDEC(adata,                        # single-cell args
         topo_latent_mode='raw',
         n_components=30, 
         k=15, 
-        t=8
+        t=8,
+        train_output_dir=None,              # Model weight save/load args 
+        pretrain_output_dir=None,       
+        initial_pretrain_weights=None,  
+        initial_train_weights=None,     
+        save_pretrain_weights=False,     
+        save_train_weights=False,        
         ):
     """Single-cell topological deep embedded clustering (scTopoDEC) API.
         
@@ -257,6 +263,21 @@ def scTopoDEC(adata,                        # single-cell args
         t : `int`, optional (default: 8)
             The diffusion time (number of power iterations) applied to the transition matrix when calculating 
             diffusion distances.
+        train_output_dir : `str` or None, optional (default: None)
+            Directory path to save final training weights and session metadata.
+        pretrain_output_dir : `str` or None, optional (default: None)
+            Directory path to save pretraining checkpoints.
+        initial_pretrain_weights : `str` or None, optional (default: None)
+            Path to a `.weights.h5` file. If provided, the model loads these weights and skips the initial autoencoder 
+            pretraining phase.
+        initial_train_weights : `str` or None, optional (default: None)
+            Path to a `.weights.h5` file. If provided, the model restores these weights to resume or warm-start 
+            a clustering session.
+        save_pretrain_weights : `bool`, optional (default: False)
+            If True, automatically saves the best autoencoder weights to `pretrain_output_dir` during the pretraining phase.
+        save_train_weights : `bool`, optional (default: False)
+            If True, enables automatic checkpointing of weights during clustering training, saving the 'best' state to 
+            `train_output_dir`.
 
         Outputs
         =======
@@ -369,6 +390,12 @@ def scTopoDEC(adata,                        # single-cell args
                        topo_input_mode=topo_input_mode, 
                        topo_latent_mode=topo_latent_mode, 
                        n_components=n_components, k=k, t=t,
+                       train_output_dir=train_output_dir,
+                       initial_train_weights=initial_train_weights,
+                       save_train_weights=save_train_weights,
+                       pretrain_output_dir=pretrain_output_dir,
+                       initial_pretrain_weights=initial_pretrain_weights,
+                       save_pretrain_weights=save_pretrain_weights,
                        verbose=verbose,
                        **training_kwds)
         else:
@@ -392,24 +419,42 @@ def scTopoDEC(adata,                        # single-cell args
                   topo_input_mode=topo_input_mode, 
                   topo_latent_mode=topo_latent_mode, 
                   n_components=n_components, k=k, t=t,
+                  train_output_dir=train_output_dir,
+                  initial_train_weights=initial_train_weights,
+                  save_train_weights=save_train_weights,
+                  pretrain_output_dir=pretrain_output_dir,
+                  initial_pretrain_weights=initial_pretrain_weights,
+                  save_pretrain_weights=save_pretrain_weights,
                   verbose=verbose,
                   **training_kwds)
     else:
         # Imputation pathway
-        pretrain(adata_train, network, 
-                 optimizer=pretrain_optimizer, 
-                 learning_rate=pretrain_learning_rate, 
-                 epochs=pretrain_epochs, 
-                 batch_size=batch_size,
-                 reduce_lr=reduce_lr,
-                 early_stop=early_stop,
-                 verbose=verbose,
-                 **pretraining_kwds)
+        if initial_pretrain_weights and os.path.exists(initial_pretrain_weights):
+            print(f"Loading weights from {initial_pretrain_weights}...")
+            network.load_weights(initial_pretrain_weights)
+        else:
+            pretrain(adata_train, network, 
+                    output_dir=pretrain_output_dir, 
+                    save_weights=save_pretrain_weights,
+                    optimizer=pretrain_optimizer, 
+                    learning_rate=pretrain_learning_rate, 
+                    epochs=pretrain_epochs, 
+                    batch_size=batch_size,
+                    reduce_lr=reduce_lr,
+                    early_stop=early_stop,
+                    verbose=verbose,
+                    **pretraining_kwds)
+            
+    # 6. Save of the entire object (Metadata + Weights)
+    if train_output_dir is not None:
+        print(f"Saving final model state to {train_output_dir}...")
+        network.file_path = train_output_dir
+        network.save()
 
-    # 6. Inference and results
+    # 7. Inference and results
     network.predict(adata_train, mode=mode, return_info=return_info, copy=False)
 
-    # 7. Return outputs
+    # 8. Return outputs
     print('\nAlgorithm runs successfully!')
     if ae_type == 'dec':
         adata.obs['stc_cluster'] = adata.obs_names.map(adata_train.obs['stc_cluster'])
@@ -426,4 +471,6 @@ def scTopoDEC(adata,                        # single-cell args
             return (adata_train, network) if copy else network
         else:
             return adata_train if copy else None
+        
+    
 

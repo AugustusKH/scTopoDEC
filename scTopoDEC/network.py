@@ -135,6 +135,23 @@ class Autoencoder():
             self.model = temp_model
             self.encoder = temp_enc
 
+    @staticmethod
+    def load_from_path(path):
+        # 1. Load the pickle (metadata)
+        with open(os.path.join(path, 'model_meta.pickle'), 'rb') as f:
+            obj = pickle.load(f)
+    
+        # 2. Re-build the architecture (the model was None)
+        obj.build() 
+    
+        # 3. Load the numerical weights
+        obj.load_weights(os.path.join(path, 'weights.weights.h5'))
+        return obj
+
+    def save_weights(self, filename):
+        # filename should be the path to 'weights.weights.h5'
+        self.model.save_weights(filename)
+
     def load_weights(self, filename):
         # filename should be the path to 'weights.weights.h5'
         self.model.load_weights(filename)
