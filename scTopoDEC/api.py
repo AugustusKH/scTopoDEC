@@ -328,17 +328,17 @@ def scTopoDEC(adata,                        # single-cell args
 
     # 3. Data Preprocessing
     adata = adata.copy() if copy else adata
-    adata = read_dataset(adata, check_counts=check_counts, copy=False)
+    adata_train = adata.copy()
+    adata_train = read_dataset(adata_train, check_counts=check_counts, copy=False)
 
     should_use_hvg = (use_hvg and ae_type == 'dec')
     
     if should_use_hvg:
         print(f"DEC mode: Selecting top {n_top_genes} highly variable genes...")
-        sc.pp.highly_variable_genes(adata, n_top_genes=n_top_genes, flavor='seurat_v3')
-        adata_train = adata[:, adata.var.highly_variable].copy()
+        sc.pp.highly_variable_genes(adata_train, n_top_genes=n_top_genes, flavor='seurat_v3')
+        adata_train = adata_train[:, adata_train.var.highly_variable]
     else:
         print(f"{ae_type.upper()} mode: Using full dataset ({adata.n_vars} genes).")
-        adata_train = adata
 
     adata_train = normalize(adata_train, 
                       size_factors=normalize_per_cell, 
