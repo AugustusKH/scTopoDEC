@@ -54,6 +54,17 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
         adata = sc.read(adata)
     else:
         raise NotImplementedError
+    
+    # Convert spare to dense matrix for gene expression
+    if hasattr(adata.X, "toarray"):
+        adata.X = adata.X.toarray() 
+
+    # Densify the raw matrix
+    if adata.raw is not None:
+        raw_dense = adata.raw.to_adata()
+        if hasattr(raw_dense.X, "toarray"):
+            raw_dense.X = raw_dense.X.toarray()
+        adata.raw = raw_dense
 
     if check_counts:
         # Step 1: Check if current X is raw
