@@ -273,6 +273,11 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
         np.random.shuffle(indices)
         for i in range(0, num_samples, batch_size):
             batch_idx = indices[i:i+batch_size]
+
+            # Skip iterations if batch_size < k
+            if len(batch_idx) < k:
+                continue
+
             x_c = tf.cast(adata.X[batch_idx], tf.float32)
             x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
             topo_input_batch = None
@@ -478,6 +483,11 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
             np.random.shuffle(indices)
             for i in range(0, num_samples, batch_size):
                 batch_idx = indices[i:i+batch_size]
+
+                # Skip iterations if batch_size < k
+                if len(batch_idx) < k:
+                    continue
+
                 x_c = tf.cast(adata.X[batch_idx], tf.float32)
                 x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
                 topo_input_batch = None
