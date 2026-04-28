@@ -47,15 +47,8 @@ def is_raw_counts(matrix):
     return np.all(data >= 0) and np.all(np.equal(np.mod(data, 1), 0))
 
 
-def read_dataset(adata, transpose=False, test_split=False, copy=False, check_counts=True):
-    if isinstance(adata, sc.AnnData):
-        adata = adata.copy() if copy else adata
-    elif isinstance(adata, str):
-        adata = sc.read(adata)
-    else:
-        raise NotImplementedError
-    
-    # Convert spare to dense matrix for gene expression
+def spare_to_dense_count(adata):
+    # Densify the active matrix (.X)
     if hasattr(adata.X, "toarray"):
         adata.X = adata.X.toarray() 
 
@@ -66,10 +59,27 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
             raw_dense.X = raw_dense.X.toarray()
         adata.raw = raw_dense
 
+    # Densify all layers
+    for layer in list(adata.layers.keys()):
+        if hasattr(adata.layers[layer], "toarray"):
+            adata.layers[layer] = adata.layers[layer].toarray()
+
+    return adata
+
+
+def read_dataset(adata, transpose=False, test_split=False, copy=False, check_counts=True):
+    if isinstance(adata, sc.AnnData):
+        adata = adata.copy() if copy else adata
+    elif isinstance(adata, str):
+        adata = sc.read(adata)
+    else:
+        raise NotImplementedError
+
     if check_counts:
         # Step 1: Check if current X is raw
         if is_raw_counts(adata.X):
             print("Confirmed: adata.X contains raw counts.")
+            adata = spare_to_dense_count(adata)
         else:
             print("Notice: adata.X appears normalized. Checking 'counts' layer...")
             
@@ -80,6 +90,7 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
                 adata.layers["normalized"] = adata.X.copy()
                 # Move raw counts to X for the preprocessing functions
                 adata.X = adata.layers["counts"].copy()
+                adata = spare_to_dense_count(adata)
             else:
                 # Step 3: Critical Failure
                 raise ValueError(
@@ -89,6 +100,9 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
 
     if transpose: 
         adata = adata.transpose()
+        # Safe for sometimes libraries return a sparse view
+        if hasattr(adata.X, "toarray"):
+            adata.X = adata.X.toarray()
 
     return adata
 
