@@ -332,10 +332,18 @@ def scTopoDEC(adata,                        # single-cell args
     keras.utils.set_random_seed(random_state)
 
     if verbose:
-        gpu_devices = tf.config.list_physical_devices('GPU')
-        if gpu_devices:
-            details = tf.config.experimental.get_device_details(gpu_devices[0])
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            details = tf.config.experimental.get_device_details(gpus[0])
             print(f"Reproducibility Lock: Enabled. GPU Detected: {details.get('device_name', 'Unknown')}")
+
+            try:
+                # Currently, memory growth needs to be the same across GPUs
+                for gpu in gpus:
+                    tf.config.experimental.set_memory_growth(gpu, True)
+            except RuntimeError as e:
+                print(e)
+
         else:
             print("Reproducibility Lock: Enabled. Running on CPU.")
 
