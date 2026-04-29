@@ -1,4 +1,9 @@
-import os, csv, tempfile, shutil, random
+import os
+os.environ['PYTHONHASHSEED'] = '0'
+os.environ['TF_DETERMINISTIC_OPS'] = '1'
+os.environ['TF_CUDNN_DETERMINISTIC'] = '1' 
+
+import csv, tempfile, shutil, random
 import anndata
 import numpy as np
 import scanpy as sc
@@ -65,7 +70,7 @@ def scTopoDEC(adata,                        # single-cell args
         early_stop=15,
         batch_size=32,
         random_state=0,
-        threads=None,
+        threads=1,
         verbose=False,
         return_model=False,
         return_info=False,
@@ -325,6 +330,14 @@ def scTopoDEC(adata,                        # single-cell args
     np.random.seed(random_state)
     tf.random.set_seed(random_state)
     keras.utils.set_random_seed(random_state)
+
+    if verbose:
+        gpu_devices = tf.config.list_physical_devices('GPU')
+        if gpu_devices:
+            details = tf.config.experimental.get_device_details(gpu_devices[0])
+            print(f"Reproducibility Lock: Enabled. GPU Detected: {details.get('device_name', 'Unknown')}")
+        else:
+            print("Reproducibility Lock: Enabled. Running on CPU.")
 
     # 3. Data Preprocessing
     adata = adata.copy() if copy else adata
