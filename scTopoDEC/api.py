@@ -44,7 +44,7 @@ def scTopoDEC(adata,                        # single-cell args
         scale=True,
         log1p=True,
         hidden_size=(256, 64, 32, 64, 256), # network args
-        loss_weights=(1, 1, 0, 0),
+        loss_weights=(1, 0.1, 0, 1),
         noise_sd=0.,
         hidden_dropout=0.,
         batchnorm=True,
@@ -66,25 +66,25 @@ def scTopoDEC(adata,                        # single-cell args
         pretrain_optimizer='adam',
         pretrain_learning_rate=0.01,  
         pretraining_kwds={},         
-        reduce_lr=10,                       # Both pretrain and train args
-        early_stop=15,
-        batch_size=32,
+        reduce_lr=20,                       # Both pretrain and train args
+        early_stop=30,
+        batch_size=128,
         random_state=0,
-        threads=1,
+        threads=None,
         verbose=False,
         return_model=False,
         return_info=False,
         copy=False,
         check_counts=True,
         homology_dim=1,                     # Topology args
-        maximum_edge_length=2.,
+        maximum_edge_length=1.5,
         topo_size=64,
         pg_dist='wd',
         order=1.,
-        topo_input_mode='pca',
-        topo_latent_mode='raw',
+        topo_input_mode='eff_res',
+        topo_latent_mode='eff_res',
         n_components=30, 
-        k=15, 
+        k=30, 
         t=8,
         train_output_dir=None,              # Model weight save/load args 
         pretrain_output_dir=None,       
@@ -133,7 +133,7 @@ def scTopoDEC(adata,                        # single-cell args
         n_top_genes : int, optional (default: 2000)
             The number of top variable genes to keep if use_hvg is True. For datasets with 
             ~30,000 genes, 2,000 is the recommended benchmark for optimal clustering performance.
-        loss_weights : `list`, optional (default: (1, 1, 0, 0))
+        loss_weights : `list`, optional (default: (1, 0.1, 0, 1))
             Weights for the joint loss function:
             - index 0: Reconstruction loss (ZINB/MSE).
             - index 1: Clustering loss (KLD).
@@ -212,11 +212,11 @@ def scTopoDEC(adata,                        # single-cell args
         pretrain_learning_rate : `float`, optional (default: 0.01)
             The learning rate for the pretraining phase. This is typically higher 
             than the clustering learning rate to allow for rapid feature learning.
-        reduce_lr : `int`, optional (default: 10)
+        reduce_lr : `int`, optional (default: 20)
             Patience for Reducing Learning Rate on plateau.
-        early_stop : `int`, optional (default: 15)
+        early_stop : `int`, optional (default: 30)
             Patience for Early Stopping based on validation loss.
-        batch_size : `int`, optional (default: 32)
+        batch_size : `int`, optional (default: 128)
             Number of samples per gradient update.
         random_state : `int`, optional (default: 0)
             Seed for reproducibility (affects Python, NumPy, and TensorFlow).
@@ -239,7 +239,7 @@ def scTopoDEC(adata,                        # single-cell args
             - 0: Connected components (clusters).
             - 1: Cycles/loops (trajectories/branches).
             - 2: Voids/spheres (globular structures).
-        maximum_edge_length : `float`, optional (default: 2.)
+        maximum_edge_length : `float`, optional (default: 1.5)
             The filtration cutoff. Limits the distance at which points are connected. 
             Prevents OOM errors by ignoring very long-distance edges.
         topo_size : `integer`, optional (default: 64)
@@ -250,11 +250,11 @@ def scTopoDEC(adata,                        # single-cell args
             'weight_mse', weighted MSE; 'wd', Wasserstein distance.
         order : `float`, optional (default: 1.)
             Wasserstein exponent q (1 <= q < infinity).
-        topo_input_mode : `string`, optional (default: 'pca')
+        topo_input_mode : `string`, optional (default: 'eff_res')
             The method used to generate the ground-truth topological representation from the 
             input data. Options include coordinate-based point clouds ('pca', 'umap', 'raw') or 
             pre-computed distance matrices ('pca_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
-        topo_latent_mode : `string`, optional (default: 'raw')
+        topo_latent_mode : `string`, optional (default: 'eff_res')
             The method used to represent the latent space Z for topological comparison. 
             Use 'raw' for coordinate-based comparison, 'inner_product' for matrix multiplication between Z and 
             its transpose, or 'euclid_dist'/'knn'/'eff_res'/'diffusion' for distance-matrix-based comparison to 
@@ -262,7 +262,7 @@ def scTopoDEC(adata,                        # single-cell args
         n_components : `int`, optional (default: 30)
             The number of dimensions to retain when using 'pca', 'umap', or their corresponding distance 
             modes for the input representation.
-        k : `int`, optional (default: 15)
+        k : `int`, optional (default: 30)
             The number of nearest neighbors used to construct the adjacency matrix for graph-based modes 
             (e.g., 'knn', 'eff_res', and 'diffusion'). 
         t : `int`, optional (default: 8)
