@@ -128,7 +128,7 @@ def objective(trial, adata, args):
         )
 
         # 3. Skip condition if the model stopped due to NaN
-        if network.model.stop_training:
+        if getattr(network.model, 'stop_training', False):
             print(f"Trial {trial.number} encountered NaN and was skipped.")
             raise optuna.exceptions.TrialPruned()
 
