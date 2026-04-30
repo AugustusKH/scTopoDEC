@@ -2,6 +2,7 @@ import os
 import json
 import optuna
 import numpy as np
+import scanpy as sc
 import tensorflow as tf
 import keras
 from sklearn import metrics
@@ -17,6 +18,27 @@ def objective(trial, adata, args):
     """
     keras.backend.clear_session()
     tf.config.run_functions_eagerly(True) 
+
+    # 0. Preprocess single-cell data
+    adata_trial = adata.copy()
+    adata_trial = io.read_dataset(adata_trial, check_counts=True, copy=False)
+
+    # HVG Selection 
+    n_genes = trial.suggest_categorical("n_top_genes", [1000, 2000, 3000])
+    
+    print(f"Trial {trial.number}: Selecting top {n_genes} genes...")
+    sc.pp.highly_variable_genes(adata_trial, n_top_genes=n_genes, flavor='seurat_v3')
+    adata_trial = adata_trial[:, adata_trial.var.highly_variable].copy()
+
+    # Normalization and scaling 
+    sc.pp.normalize_total(adata_trial, target_sum=1e4)
+    sc.pp.log1p(adata_trial)
+    sc.pp.scale(adata_trial, max_value=10)
+
+    adata_trial = io.normalize(adata_trial, 
+                      size_factors=True, 
+                      logtrans_input=True, 
+                      normalize_input=True)
 
     # 1. Define Search Space Dynamically
     # Model Params
@@ -64,7 +86,7 @@ def objective(trial, adata, args):
     try:
         # 2. Initialize Network
         network = network_options['dec'](
-            input_size=adata.n_vars,
+            input_size=adata_trial.n_vars,
             hidden_size=hidden_size,
             activation=activation,
             noise_sd=noise_sd,
@@ -77,7 +99,7 @@ def objective(trial, adata, args):
         train_func = ramp_train if ramp_mode else train
         
         y_pred = train_func(
-            adata, network, 
+            adata_trial, network, 
             epochs=args.hyperepoch,
             batch_size=batch_size,
             optimizer=optimizer,
@@ -100,8 +122,8 @@ def objective(trial, adata, args):
         )
         
         # 3. Scoring
-        if args.ground_truth and args.ground_truth in adata.obs:
-            y_true = adata.obs[args.ground_truth].values
+        if args.ground_truth and args.ground_truth in adata_trial.obs:
+            y_true = adata_trial.obs[args.ground_truth].values
             # Optuna minimizes by default, so we use (1 - ARI)
             score = 1 - metrics.adjusted_rand_score(y_true, y_pred)
         else:
