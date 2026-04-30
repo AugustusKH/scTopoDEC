@@ -1,4 +1,5 @@
 import os
+import gc
 import json
 import optuna
 import numpy as np
@@ -20,6 +21,7 @@ def objective(trial, adata, args):
     """
     Optuna objective function for scTopoDEC.
     """
+    gc.collect()
     keras.backend.clear_session()
     tf.config.run_functions_eagerly(False) 
 
