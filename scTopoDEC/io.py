@@ -121,6 +121,9 @@ def normalize(adata, filter_min_counts=True, size_factors=True, normalize_input=
     else:
         adata.obs['size_factors'] = 1.0
 
+    # Clip values to avoid log(0)
+    adata.X = np.clip(adata.X, 1e-10, 1e6)
+
     if logtrans_input:
         sc.pp.log1p(adata)
 

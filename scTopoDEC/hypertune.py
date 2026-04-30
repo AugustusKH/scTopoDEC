@@ -12,12 +12,16 @@ from .network import network_options
 from .metric import cluster_acc
 from .train import pretrain, train, ramp_train 
 
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' 
+
+
 def objective(trial, adata, args):
     """
     Optuna objective function for scTopoDEC.
     """
     keras.backend.clear_session()
-    tf.config.run_functions_eagerly(True) 
+    tf.config.run_functions_eagerly(False) 
 
     # 0. Preprocess single-cell data
     adata_trial = adata.copy()
@@ -40,9 +44,10 @@ def objective(trial, adata, args):
     # 1. Define Search Space Dynamically
     # Model Params
     hidden_choices = [
-        (512, 256, 256, 256, 512), (512, 256, 128, 256, 512), (512, 128, 256, 128, 512),
-        (512, 256, 128, 64, 128, 256, 512), (512, 256, 128, 64, 32, 64, 128, 256, 512),
-        (256, 128, 64, 128, 256), (256, 128, 64, 32, 64, 128, 256), (128, 64, 32, 64, 128)
+        (256, 128, 64, 128, 256), (256, 128, 64, 32, 64, 128, 256), (256, 128, 64, 32, 16, 32, 64, 128, 256),
+        (256, 128, 256), (256, 64, 256), (128, 64, 32, 64, 128), (128, 64, 128), (128, 32, 128), 
+        (256, 64, 128, 64, 256), (256, 128, 64, 128, 64, 128, 256), (256, 128, 64, 32, 64, 32, 64, 128, 256),
+        (256, 128, 64, 32, 64, 128, 64, 32, 64, 128, 256), (256, 128, 128, 128, 256), (128, 64, 32, 64, 32, 64, 128)
     ]
     hidden_size = trial.suggest_categorical("hidden_size", hidden_choices)
     activation = trial.suggest_categorical("activation", ['relu', 'LeakyReLU'])
@@ -50,7 +55,7 @@ def objective(trial, adata, args):
     dropout = trial.suggest_float("dropout", 0.0, 0.5)
 
     # Training Params
-    batch_size = trial.suggest_categorical("batch_size", [64, 128, 256, 512])
+    batch_size = trial.suggest_categorical("batch_size", [64, 128, 256])
     optimizer = trial.suggest_categorical("optimizer", ['adam', 'rmsprop', 'adadelta'])
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     update_interval = trial.suggest_categorical("update_interval", [5, 10, 20])
@@ -93,6 +98,9 @@ def objective(trial, adata, args):
         )
         network.build()
 
+        # This will stop training the moment loss becomes NaN
+        nan_callback = keras.callbacks.TerminateOnNaN()
+
         train_func = ramp_train if ramp_mode else train
         
         y_pred = train_func(
@@ -115,18 +123,37 @@ def objective(trial, adata, args):
             topo_latent_mode=topo_lat_mode,
             k=k,
             t=args.t, 
+            callbacks=[nan_callback],
             verbose=False
         )
+
+        # 3. Skip condition if the model stopped due to NaN
+        if network.model.stop_training:
+            print(f"Trial {trial.number} encountered NaN and was skipped.")
+            raise optuna.exceptions.TrialPruned()
+
+        # Evaluate the model on a small sample to check weights/outputs
+        eval_loss = network.model.evaluate([adata_trial.X[:5], adata_trial.obs['size_factors'][:5]], 
+                                            adata_trial.X[:5], verbose=0)
+        if np.isnan(eval_loss).any():
+             raise optuna.exceptions.TrialPruned()
         
-        # 3. Scoring
+        # 4. Scoring
         if args.ground_truth and args.ground_truth in adata_trial.obs:
             y_true = adata_trial.obs[args.ground_truth].values
             # Optuna minimizes by default, so we use (1 - ARI)
             score = 1 - metrics.adjusted_rand_score(y_true, y_pred)
         else:
             score = network.model.history.history['loss'][-1]
+
+        # Check NaN on the score
+        if np.isnan(score):
+            raise optuna.exceptions.TrialPruned()
         
         return score
+
+    except optuna.exceptions.TrialPruned:
+        raise # Re-raise so Optuna marks it as Pruned
 
     except Exception as e:
         print(f"\n[!] Trial {trial.number} failed: {e}")
@@ -166,14 +193,14 @@ def hyperparams_tune(args, adata_input=None):
                                 transpose=args.transpose, 
                                 test_split=False)
 
-    # 4. Create and run study
+    # 1. Create and run study
     # Use MedianPruner to kill poorly performing trials early
     study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
     
     print(f"Starting Optuna Optimization for {args.hypern} trials...")
     study.optimize(lambda trial: objective(trial, adata, args), n_trials=args.hypern)
 
-    # 5. Save results
+    # 2. Save results
     best_params = study.best_params
     # Convert tuples to strings for JSON serializability
     save_params = {k: (str(v) if isinstance(v, tuple) else v) for k, v in best_params.items()}

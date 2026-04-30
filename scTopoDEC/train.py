@@ -166,7 +166,7 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
           pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
           early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
           maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
-          topo_latent_mode='raw', n_components=30, k=15, t=8, **kwds):
+          topo_latent_mode='raw', n_components=30, k=15, t=8, callbacks=None, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
@@ -221,6 +221,10 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
     opt_dec = optimizers.get(optimizer)
     opt_dec.build(model.trainable_variables)
     opt_dec.learning_rate = learning_rate
+
+    # Initialize callbacks
+    callback_list = keras.callbacks.CallbackList(callbacks, add_history=True, model=model)
+    callback_list.on_train_begin()
 
     # 4. Iterative Training Loop
     print("\n...Training for clustering...")
@@ -303,6 +307,16 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
                 rips_layer=rips_layer
             )
 
+            # --- Trigger Batch End Callbacks ---
+            # This is where TerminateOnNaN checks for NaN
+            callback_list.on_batch_end(i // batch_size, logs={'loss': float(loss_vals[0])})
+            
+            # Check if NaN was detected and stop_training was set
+            if model.stop_training:
+                print(f"NaN detected at Epoch {epoch}, Batch {i}. Pruning trial.")
+                return y_pred # Objective will check model weights for NaN later
+            # ----------------------------------------------
+
         if verbose:
             print(f"Epoch {epoch} - Total L: {loss_vals[0]:.4f}, L_zinb: {loss_vals[1]:.4f}, "
                   f"L_kl: {loss_vals[2]:.4f}, L_km: {loss_vals[3]:.4f}, L_topo: {loss_vals[4]:.4f}")
@@ -348,6 +362,7 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
         if verbose: print("Restoring best weights from training...")
         model.set_weights(best_weights)
 
+    callback_list.on_train_end()
     end_total_train = time.time()
     print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
 
@@ -414,6 +429,10 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
     opt_dec = optimizers.get(optimizer)
     opt_dec.learning_rate = learning_rate
     opt_dec.build(model.trainable_variables)
+
+    # Initialize callbacks
+    callback_list = keras.callbacks.CallbackList(callbacks, add_history=True, model=model)
+    callback_list.on_train_begin()
 
     # Contruct the RipsLayer
     if loss_weights[3] > 0:
@@ -513,6 +532,14 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
                     rips_layer=rips_layer
                 )
 
+                # --- Trigger Batch End Callbacks ---
+                callback_list.on_batch_end(i // batch_size, logs={'loss': float(loss_vals[0])})
+                
+                if model.stop_training:
+                    print(f"NaN detected during Res {current_res}. Pruning trial.")
+                    return y_pred
+                # ----------------------------------------------
+
             current_loss = float(loss_vals[0])
 
             # --- Logic for EarlyStopping and best weights ---
@@ -548,6 +575,7 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
         print("Restoring best weights from training history...")
         model.set_weights(best_weights)
 
+    callback_list.on_train_end()
     print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
     
     return y_pred
