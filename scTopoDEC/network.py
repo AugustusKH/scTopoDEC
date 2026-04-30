@@ -92,7 +92,12 @@ class Autoencoder():
 
             # Modern Activation lookup
             if self.activation in ('PReLU', 'LeakyReLU'):
-                last_hidden = layers.get(self.activation)(name='%s_act' % layer_name)(last_hidden)
+
+                if self.activation == 'PReLU':
+                    last_hidden = layers.PReLU(name='%s_act' % layer_name)(last_hidden)
+                else:
+                    last_hidden = layers.LeakyReLU(name='%s_act' % layer_name)(last_hidden)
+                    
             else:
                 last_hidden = layers.Activation(self.activation, name='%s_act' % layer_name)(last_hidden)
 

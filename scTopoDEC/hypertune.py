@@ -31,14 +31,11 @@ def objective(trial, adata, args):
     adata_trial = adata_trial[:, adata_trial.var.highly_variable].copy()
 
     # Normalization and scaling 
-    sc.pp.normalize_total(adata_trial, target_sum=1e4)
-    sc.pp.log1p(adata_trial)
-    sc.pp.scale(adata_trial, max_value=10)
-
     adata_trial = io.normalize(adata_trial, 
-                      size_factors=True, 
-                      logtrans_input=True, 
-                      normalize_input=True)
+                               filter_min_counts=True,
+                               size_factors=True, 
+                               logtrans_input=True, 
+                               normalize_input=True)
 
     # 1. Define Search Space Dynamically
     # Model Params
