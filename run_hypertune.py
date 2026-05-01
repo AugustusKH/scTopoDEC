@@ -1,6 +1,8 @@
 # run_hyper.py
-import sys
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
+import sys
 import gc
 import tensorflow as tf
 import scanpy as sc
@@ -14,7 +16,7 @@ def load_general_data(input_path):
     """
     extension = os.path.splitext(input_path)[1].lower()
     print(f"Loading dataset from: {input_path}")
-    
+
     if extension == '.h5ad':
         return sc.read_h5ad(input_path)
     elif extension == '.csv':

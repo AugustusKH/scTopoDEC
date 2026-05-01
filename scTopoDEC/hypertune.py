@@ -1,4 +1,6 @@
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 import gc
 import json
 import optuna
@@ -13,8 +15,6 @@ from .network import network_options
 from .metric import cluster_acc
 from .train import pretrain, train, ramp_train 
 
-
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0' 
 
 
 def objective(trial, adata, args):
