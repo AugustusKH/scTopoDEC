@@ -147,10 +147,7 @@ def objective(trial, adata, args):
         # Evaluate the model on a small sample to check weights/outputs
         network.model.compile(
             optimizer=optimizer,
-            loss={
-                'clustering': None, # Ignore the clustering output
-                'zinb_bundle': network.loss # Use ZINB loss for the bundle
-            }
+            loss=[None, network.loss] 
         )
 
         try:
