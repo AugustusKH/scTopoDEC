@@ -1,7 +1,10 @@
 # run_hyper.py
 import sys
 import os
+import gc
+import tensorflow as tf
 import scanpy as sc
+from sklearn.preprocessing import LabelEncoder
 from types import SimpleNamespace
 from scTopoDEC.hypertune import hyperparams_tune
 
@@ -9,13 +12,9 @@ def load_general_data(input_path):
     """
     Generalized loader for different single-cell file formats.
     """
-    if input_path is None:
-        print("No input path provided. Loading paul15 as fallback...")
-        return sc.datasets.paul15()
-    
     extension = os.path.splitext(input_path)[1].lower()
-    
     print(f"Loading dataset from: {input_path}")
+    
     if extension == '.h5ad':
         return sc.read_h5ad(input_path)
     elif extension == '.csv':
@@ -24,26 +23,44 @@ def load_general_data(input_path):
         return sc.read_10x_mtx(os.path.dirname(input_path))
     else:
         raise ValueError(f"Unsupported file format: {extension}")
+    
+def preprocess_data(adata, ground_truth=None):
+    """
+    Preprocess adata and encode ground truth label
+    """
+    # Preprocessing
+    sc.pp.filter_genes(adata, min_cells=5)
+    sc.pp.filter_cells(adata, min_counts=5)
+    adata.layers["counts"] = adata.X.copy() # Saving count data
+
+    # Ground truth encoding
+    if ground_truth is not None and ground_truth in adata.obs:
+        le = LabelEncoder()
+        adata.obs['ground_truth_label'] = adata.obs['ground_truth'].copy()
+        adata.obs['ground_truth'] = le.fit_transform(adata.obs[ground_truth])
+
+    return adata
 
 def main():
     # 1. Setup Arguments
     args = SimpleNamespace(
-        input="sc_data.h5ad",    # Path to your specific dataset
+        input="sc_data.h5ad",                   # Path to your specific dataset
         outputdir="./results",
         transpose=False,
-        hypern=30,                   # Number of Optuna trials
-        hyperepoch=50,               # Epochs per trial
-        ground_truth="cell_type",    # Change this to the column name in your adata.obs
-        t=8,                         # Diffusion time
-        homology_dim=1               # Persistence dimension
+        hypern=30,                              # Number of Optuna trials
+        hyperepoch=50,                          # Epochs per trial
+        ground_truth="ground_truth_label",      # Change this to the column name in your adata.obs
+        t=8,                                    # Diffusion time
+        homology_dim=1                          # Persistence dimension
     )
 
     if not os.path.exists(args.outputdir):
         os.makedirs(args.outputdir)
 
     try:
-        # 2. Load the data
+        # 2. Load and preprocess the data
         adata = load_general_data(args.input)
+        preprocess_data(adata, ground_truth=args.ground_truth)
         
         # Data Integrity Check
         if args.ground_truth not in adata.obs.columns:
@@ -52,6 +69,10 @@ def main():
             print(f"Available columns: {available}")
             # Optional: fall back to the first available column or index
             # args.ground_truth = available[0] 
+
+        # Clear any leftover memory from preprocessing
+        gc.collect()
+        tf.keras.backend.clear_session()
 
         print(f"Starting Optuna Study on {adata.n_obs} cells and {adata.n_vars} genes...")
         

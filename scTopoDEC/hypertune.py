@@ -59,13 +59,13 @@ def objective(trial, adata, args):
     # Training Params
     batch_size = trial.suggest_categorical("batch_size", [64, 128, 256])
     optimizer = trial.suggest_categorical("optimizer", ['adam', 'rmsprop', 'adadelta'])
-    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+    lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
     update_interval = trial.suggest_categorical("update_interval", [5, 10, 20])
     soft_kmean = trial.suggest_categorical("soft_kmean", [True, False])
 
     # Pretrain Params
     p_opt = trial.suggest_categorical("pre_opt", ['adam', 'rmsprop', 'adadelta'])
-    p_lr = trial.suggest_float("pre_lr", 1e-3, 1e-1, log=True)
+    p_lr = trial.suggest_float("pre_lr", 1e-3, 1e-2, log=True)
 
     # Clustering Params
     alpha = trial.suggest_float("alpha", 1.0, 5.0)
