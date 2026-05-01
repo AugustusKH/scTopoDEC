@@ -377,7 +377,7 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
                save_pretrain_weights=False, pretrain_epochs=200, pretrain_optimizer='adam', pretrain_learning_rate=0.01, 
                res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0), early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
                maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', topo_latent_mode='raw', 
-               n_components=30, k=15, t=8, **kwds):
+               n_components=30, k=15, t=8, callbacks=None, **kwds):
    
     model = network.model
     ae_loss_fn = network.loss 
