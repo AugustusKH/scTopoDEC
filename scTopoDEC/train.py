@@ -173,6 +173,7 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
     clustering_layer = model.get_layer(name='clustering')
     topo_input = None
     rips_layer = None
+    model.stop_training = False
     
     # 1. Pretrain
     print("\n...Pretraining Autoencoder...")
@@ -383,6 +384,7 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
     clustering_layer = model.get_layer(name='clustering')
     topo_input = None
     rips_layer = None
+    model.stop_training = False
     
     # 1. Pretrain 
     print("\n...Pretraining Autoencoder...")
