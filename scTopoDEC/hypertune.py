@@ -152,12 +152,17 @@ def objective(trial, adata, args):
 
         try:
             eval_results = network.model.evaluate(
-                x={'count': adata_trial.X[:5], 'size_factors': adata_trial.obs['size_factors'][:5].values}, 
-                y={'zinb_bundle': adata_trial.X[:5]}, # Map labels to the bundle
+                x={
+                    'count': adata_trial.X[:5], 
+                    'size_factors': adata_trial.obs['size_factors'][:5].values
+                }, 
+                y=[None, adata_trial.X[:5]], 
                 verbose=0,
                 return_dict=True
             )
-            eval_loss = eval_results['zinb_bundle_loss']
+
+            keys = list(eval_results.keys())
+            eval_loss = eval_results[keys[1]] if len(keys) > 1 else eval_results['loss']
     
         except Exception as e:
             print(f"Evaluation health check failed: {e}. Pruning...")
