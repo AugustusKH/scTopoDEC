@@ -174,8 +174,17 @@ def objective(trial, adata, args):
         # 4. Scoring
         if args.ground_truth and args.ground_truth in adata_trial.obs:
             y_true = adata_trial.obs[args.ground_truth].values
+            ari = metrics.adjusted_rand_score(y_true, y_pred)
             # Optuna minimizes by default, so we use (1 - ARI)
-            score = 1 - metrics.adjusted_rand_score(y_true, y_pred)
+            score = 1 - ari
+
+            # -------- Score block ---------
+            print(f"\n[SUCCESS] Trial {trial.number} Finished.")
+            print(f">>> ARI Score: {ari:.4f}")
+            print(f">>> Optuna Score (1-ARI): {score:.4f}")
+            sys.stdout.flush() 
+            # ------------------------------
+
         else:
             score = network.model.history.history['loss'][-1]
 
