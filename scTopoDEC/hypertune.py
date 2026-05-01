@@ -145,9 +145,27 @@ def objective(trial, adata, args):
             raise optuna.exceptions.TrialPruned()
 
         # Evaluate the model on a small sample to check weights/outputs
-        network.model.compile(optimizer=optimizer, loss=network.loss)
-        eval_loss = network.model.evaluate([adata_trial.X[:5], adata_trial.obs['size_factors'][:5]], 
-                                            adata_trial.X[:5], verbose=0)
+        network.model.compile(
+            optimizer=optimizer,
+            loss={
+                'clustering': None, # Ignore the clustering output
+                'zinb_bundle': network.loss # Use ZINB loss for the bundle
+            }
+        )
+
+        try:
+            eval_results = network.model.evaluate(
+                x={'count': adata_trial.X[:5], 'size_factors': adata_trial.obs['size_factors'][:5].values}, 
+                y={'zinb_bundle': adata_trial.X[:5]}, # Map labels to the bundle
+                verbose=0,
+                return_dict=True
+            )
+            eval_loss = eval_results['zinb_bundle_loss']
+    
+        except Exception as e:
+            print(f"Evaluation health check failed: {e}. Pruning...")
+            raise optuna.exceptions.TrialPruned()
+
         if np.isnan(eval_loss).any():
              raise optuna.exceptions.TrialPruned()
         
