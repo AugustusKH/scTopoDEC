@@ -62,6 +62,7 @@ def objective(trial, adata, args):
     lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
     update_interval = trial.suggest_categorical("update_interval", [5, 10, 20])
     soft_kmean = trial.suggest_categorical("soft_kmean", [True, False])
+    tol = trial.suggest_categorical("tol", [1e-3, 1e-4, 1e-5])
 
     # Pretrain Params
     p_opt = trial.suggest_categorical("pre_opt", ['adam', 'rmsprop', 'adadelta'])
@@ -112,6 +113,7 @@ def objective(trial, adata, args):
             optimizer=optimizer,
             learning_rate=lr,
             update_interval=update_interval,
+            tol=tol,
             soft_kmean=soft_kmean,
             loss_weights=loss_weights,
             res_ramp=res_ramp if ramp_mode else None,
@@ -135,6 +137,7 @@ def objective(trial, adata, args):
             raise optuna.exceptions.TrialPruned()
 
         # Evaluate the model on a small sample to check weights/outputs
+        network.model.compile(optimizer=optimizer, loss=network.loss)
         eval_loss = network.model.evaluate([adata_trial.X[:5], adata_trial.obs['size_factors'][:5]], 
                                             adata_trial.X[:5], verbose=0)
         if np.isnan(eval_loss).any():
