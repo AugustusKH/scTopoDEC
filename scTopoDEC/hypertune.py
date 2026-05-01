@@ -1,6 +1,7 @@
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
+import sys
 import gc
 import json
 import optuna
@@ -87,6 +88,13 @@ def objective(trial, adata, args):
     topo_in_mode = trial.suggest_categorical("topo_in_mode", ['umap', 'pca_dist', 'knn', 'eff_res'])
     topo_lat_mode = trial.suggest_categorical("topo_lat_mode", ['raw', 'inner_product', 'euclid_dist', 'eff_res'])
     k = trial.suggest_categorical("k", [15, 30, 50, 100])
+
+    # ---------- DEBUG BLOCK ----------
+    print(f"\n>>> Trial {trial.number} Config:")
+    for key, value in trial.params.items():
+        print(f"  {key}: {value}")
+    sys.stdout.flush() 
+    # --------------------------------
 
     try:
         # 2. Initialize Network
