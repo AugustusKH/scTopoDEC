@@ -1,9 +1,28 @@
+import os
+import random
 import numpy as np
+import keras
 import tensorflow as tf
 from keras import ops
 from scipy.spatial.distance import pdist, squareform
 from . import topogeom as tg
 from .io import data_compression
+
+
+
+def set_reproducibility(seed=0):
+    # Environment and Python seeds
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
+    random.seed(seed)
+    
+    # Math and array seeds
+    np.random.seed(seed)
+    
+    # Deep learning framework seeds
+    tf.random.set_seed(seed)
+    keras.utils.set_random_seed(seed)
 
 
 def compute_target_distribution(q):

@@ -29,6 +29,7 @@ except ImportError:
 from .io import read_dataset, normalize
 from .train import pretrain, train, ramp_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
+from .utils import set_reproducibility
 
 tf.keras.backend.clear_session()
 
@@ -326,10 +327,7 @@ def scTopoDEC(adata,                        # single-cell args
         tf.config.threading.set_intra_op_parallelism_threads(threads)
         tf.config.threading.set_inter_op_parallelism_threads(threads)
 
-    random.seed(random_state)
-    np.random.seed(random_state)
-    tf.random.set_seed(random_state)
-    keras.utils.set_random_seed(random_state)
+    set_reproducibility(seed=random_state)
 
     if verbose:
         gpus = tf.config.list_physical_devices('GPU')

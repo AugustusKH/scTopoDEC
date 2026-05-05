@@ -15,6 +15,7 @@ from . import io
 from .network import network_options
 from .metric import cluster_acc
 from .train import pretrain, train, ramp_train 
+from .utils import set_reproducibility 
 
 
 
@@ -22,6 +23,7 @@ def objective(trial, adata, args):
     """
     Optuna objective function for scTopoDEC.
     """
+    set_reproducibility(seed=0)
     gc.collect()
     keras.backend.clear_session()
     tf.config.run_functions_eagerly(False) 
@@ -224,7 +226,7 @@ def hyperparams_tune(args, adata_input=None):
     Returns:
         dict: A dictionary containing the hyperparameters from the best-performing trial.
     """
-    keras.utils.set_random_seed(42)
+    set_reproducibility(seed=0)
     output_dir = os.path.join(args.outputdir, 'optuna_results')
     os.makedirs(output_dir, exist_ok=True)
 
