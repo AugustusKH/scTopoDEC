@@ -167,8 +167,9 @@ def objective(trial, adata, args):
     return optuna_val
 
 
+
 def hyperparams_tune(args, adata_input=None):
-   """
+    """
     Hyperparameter tuning using Optuna optimization.
     This function automates the search for optimal hyperparameters by executing 
     multiple trials of the scTopoDEC model. It manages data loading, 
