@@ -367,6 +367,10 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
     end_total_train = time.time()
     print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
 
+    # Cluster prediction based on the best weight
+    q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    y_pred = q.argmax(1)
+
     return y_pred
 
 
@@ -579,5 +583,9 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
 
     callback_list.on_train_end()
     print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
+
+    # Cluster prediction based on the best weight
+    q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    y_pred = q.argmax(1)
     
     return y_pred
