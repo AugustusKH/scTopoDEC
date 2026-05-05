@@ -23,7 +23,6 @@ def objective(trial, adata, args):
     """
     Optuna objective function for scTopoDEC.
     """
-    set_reproducibility(seed=0)
     gc.collect()
     keras.backend.clear_session()
     tf.config.run_functions_eagerly(False) 
@@ -98,113 +97,78 @@ def objective(trial, adata, args):
     sys.stdout.flush() 
     # --------------------------------
 
-    try:
-        # 2. Initialize Network
-        network = network_options['dec'](
-            input_size=adata_trial.n_vars,
-            hidden_size=hidden_size,
-            activation=activation,
-            noise_sd=noise_sd,
-            hidden_dropout=dropout,
-            n_clusters=n_clusters,
-            alpha=alpha
-        )
-        network.build()
+    seeds = [0, 42, 123]
+    trial_scores = []
 
-        # This will stop training the moment loss becomes NaN
-        nan_callback = keras.callbacks.TerminateOnNaN()
-
-        train_func = ramp_train if ramp_mode else train
+    # --- MULTI-SEED LOOP ---
+    for seed in seeds:
+        set_reproducibility(seed=seed)
+        adata_seed = adata_trial.copy()
         
-        y_pred = train_func(
-            adata_trial, network, 
-            epochs=args.hyperepoch,
-            batch_size=batch_size,
-            optimizer=optimizer,
-            learning_rate=lr,
-            update_interval=update_interval,
-            tol=tol,
-            soft_kmean=soft_kmean,
-            loss_weights=loss_weights,
-            res_ramp=res_ramp if ramp_mode else None,
-            pretrain_optimizer=p_opt,
-            pretrain_learning_rate=p_lr,
-            homology_dim=args.homology_dim, 
-            maximum_edge_length=max_edge,
-            topo_size=topo_size,
-            order=order,
-            topo_input_mode=topo_in_mode,
-            topo_latent_mode=topo_lat_mode,
-            k=k,
-            t=args.t, 
-            callbacks=[nan_callback],
-            verbose=False
-        )
-
-        # 3. Skip condition if the model stopped due to NaN
-        if getattr(network.model, 'stop_training', False):
-            print(f"Trial {trial.number} encountered NaN and was skipped.")
-            raise optuna.exceptions.TrialPruned()
-
-        # Evaluate the model on a small sample to check weights/outputs
-        network.model.compile(
-            optimizer=optimizer,
-            loss=[None, network.loss] 
-        )
-
         try:
-            eval_results = network.model.evaluate(
-                x={
-                    'count': adata_trial.X[:5], 
-                    'size_factors': adata_trial.obs['size_factors'][:5].values
-                }, 
-                y=[None, adata_trial.X[:5]], 
-                verbose=0,
-                return_dict=True
+            network = network_options['dec'](
+                input_size=adata_seed.n_vars,
+                hidden_size=hidden_size,
+                activation=activation,
+                noise_sd=noise_sd,
+                hidden_dropout=dropout,
+                n_clusters=n_clusters,
+                alpha=alpha
+            )
+            network.build()
+
+            train_func = ramp_train if ramp_mode else train
+            
+            y_pred = train_func(
+                adata_seed, network, 
+                epochs=args.hyperepoch,
+                batch_size=batch_size,
+                optimizer=optimizer,
+                learning_rate=lr,
+                update_interval=update_interval,
+                tol=tol,
+                soft_kmean=soft_kmean,
+                loss_weights=loss_weights,
+                res_ramp=res_ramp if ramp_mode else None,
+                pretrain_optimizer=p_opt,
+                pretrain_learning_rate=p_lr,
+                homology_dim=args.homology_dim, 
+                maximum_edge_length=max_edge,
+                topo_size=topo_size,
+                order=order,
+                topo_input_mode=topo_in_mode,
+                topo_latent_mode=topo_lat_mode,
+                k=k,
+                verbose=False
             )
 
-            keys = list(eval_results.keys())
-            eval_loss = eval_results[keys[1]] if len(keys) > 1 else eval_results['loss']
-    
+            # 3. Scoring per seed
+            if args.ground_truth and args.ground_truth in adata_seed.obs:
+                y_true = adata_seed.obs[args.ground_truth].values
+                score = metrics.adjusted_rand_score(y_true, y_pred)
+            else:
+                score = network.model.history.history['loss'][-1]
+            
+            trial_scores.append(score)
+            keras.backend.clear_session()
+
         except Exception as e:
-            print(f"Evaluation health check failed: {e}. Pruning...")
-            raise optuna.exceptions.TrialPruned()
+            print(f"Seed {seed} failed: {e}")
+            trial_scores.append(0.0 if args.ground_truth else float('inf'))
 
-        if np.isnan(eval_loss).any():
-             raise optuna.exceptions.TrialPruned()
-        
-        # 4. Scoring
-        if args.ground_truth and args.ground_truth in adata_trial.obs:
-            y_true = adata_trial.obs[args.ground_truth].values
-            ari = metrics.adjusted_rand_score(y_true, y_pred)
-            # Optuna minimizes by default, so we use (1 - ARI)
-            score = 1 - ari
+    # Score averaging
+    mean_score = np.mean(trial_scores)
+    
+    # Optuna minimizes: return (1 - ARI) or raw loss
+    optuna_val = (1 - mean_score) if args.ground_truth else mean_score
+    
+    print(f"\n[SUCCESS] Trial {trial.number} Finished. Avg ARI/Loss: {mean_score:.4f}")
 
-            # -------- Score block ---------
-            print(f"\n[SUCCESS] Trial {trial.number} Finished.")
-            print(f">>> ARI Score: {ari:.4f}")
-            print(f">>> Optuna Score (1-ARI): {score:.4f}")
-            sys.stdout.flush() 
-            # ------------------------------
+    return optuna_val
 
-        else:
-            score = network.model.history.history['loss'][-1]
-
-        # Check NaN on the score
-        if np.isnan(score):
-            raise optuna.exceptions.TrialPruned()
-        
-        return score
-
-    except optuna.exceptions.TrialPruned:
-        raise # Re-raise so Optuna marks it as Pruned
-
-    except Exception as e:
-        print(f"\n[!] Trial {trial.number} failed: {e}")
-        return float('inf') # Penalty for crashes
 
 def hyperparams_tune(args, adata_input=None):
-    """
+   """
     Hyperparameter tuning using Optuna optimization.
     This function automates the search for optimal hyperparameters by executing 
     multiple trials of the scTopoDEC model. It manages data loading, 
@@ -226,6 +190,7 @@ def hyperparams_tune(args, adata_input=None):
     Returns:
         dict: A dictionary containing the hyperparameters from the best-performing trial.
     """
+    # Initialize global reproducibility for the study itself
     set_reproducibility(seed=0)
     output_dir = os.path.join(args.outputdir, 'optuna_results')
     os.makedirs(output_dir, exist_ok=True)
@@ -238,16 +203,84 @@ def hyperparams_tune(args, adata_input=None):
                                 test_split=False)
 
     # 1. Create and run study
-    # Use MedianPruner to kill poorly performing trials early
     study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
     
     print(f"Starting Optuna Optimization for {args.hypern} trials...")
     study.optimize(lambda trial: objective(trial, adata, args), n_trials=args.hypern)
 
-    # 2. Save results
+    # 2. Extract best parameters
     best_params = study.best_params
-    # Convert tuples to strings for JSON serializability
+
+    # 3. Robust check for the best model
+    print("\n" + "-"*15 + " Starting Final Robustness Check " + "-"*15)
+    final_verification_seeds = [50, 150, 999]
+    final_ari_scores = []
+
+    # Pre-process the data according to the best n_top_genes found
+    adata_hypertune = adata.copy()
+    sc.pp.highly_variable_genes(adata_hypertune, n_top_genes=best_params['n_top_genes'], flavor='seurat_v3')
+    adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
+    adata_hypertune = io.normalize(adata_hypertune, 
+                                   filter_min_counts=True, 
+                                   size_factors=True, 
+                                   logtrans_input=True, 
+                                   normalize_input=True)
+
+    for seed in final_verification_seeds:
+        print(f">>> Verifying Seed {seed}...")
+        set_reproducibility(seed) # Lock seed for this specific run
+        keras.backend.clear_session()
+        
+        # Initialize the best model architecture
+        network = network_options['dec'](
+            input_size=adata_hypertune.n_vars,
+            hidden_size=best_params['hidden_size'],
+            activation=best_params['activation'],
+            noise_sd=best_params['noise_sd'],
+            hidden_dropout=best_params['dropout'],
+            n_clusters=best_params['n_clusters'],
+            alpha=best_params['alpha']
+        )
+        network.build()
+
+        # Use ramp_train if suggested, else standard train
+        train_func = ramp_train if best_params['ramp_mode'] else train
+        
+        y_pred = train_func(
+            adata_hypertune, network, 
+            epochs=args.hyperepoch,
+            batch_size=best_params['batch_size'],
+            optimizer=best_params['optimizer'],
+            learning_rate=best_params['lr'],
+            update_interval=best_params['update_interval'],
+            tol=best_params['tol'],
+            soft_kmean=best_params['soft_kmean'],
+            loss_weights=best_params['loss_weights'],
+            res_ramp=best_params['res_ramp'] if best_params['ramp_mode'] else None,
+            pretrain_optimizer=best_params['pre_opt'],
+            pretrain_learning_rate=best_params['pre_lr'],
+            homology_dim=args.homology_dim, 
+            maximum_edge_length=best_params['max_edge'],
+            topo_size=best_params['topo_size'],
+            order=best_params['order'],
+            topo_input_mode=best_params['topo_in_mode'],
+            topo_latent_mode=best_params['topo_lat_mode'],
+            k=best_params['k'],
+            verbose=False
+        )
+
+        if args.ground_truth in adata_hypertune.obs:
+            y_true = adata_hypertune.obs[args.ground_truth].values
+            final_ari = metrics.adjusted_rand_score(y_true, y_pred)
+            final_ari_scores.append(final_ari)
+
+    # 4. Save and print final results
     save_params = {k: (str(v) if isinstance(v, tuple) else v) for k, v in best_params.items()}
+    
+    # Add robustness metrics to the saved file
+    if final_ari_scores:
+        save_params['robustness_mean_ari'] = float(np.mean(final_ari_scores))
+        save_params['robustness_std_ari'] = float(np.std(final_ari_scores))
 
     with open(os.path.join(output_dir, 'best_config.json'), 'w') as f:
         json.dump(save_params, f, indent=4)
@@ -255,7 +288,10 @@ def hyperparams_tune(args, adata_input=None):
     print("\n" + "="*40)
     print("  OPTUNA OPTIMIZATION COMPLETE  ")
     print("="*40)
-    print(f"Best Loss/ARI: {study.best_value}")
+   
+    if final_ari_scores:
+        print(f"Mean Robustness ARI: {np.mean(final_ari_scores):.4f} ± {np.std(final_ari_scores):.4f}")
+
     print(json.dumps(save_params, indent=4))
     
     return best_params
