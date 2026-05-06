@@ -62,7 +62,7 @@ def objective(trial, adata, args):
     batch_size = trial.suggest_categorical("batch_size", [64, 128, 256])
     optimizer = trial.suggest_categorical("optimizer", ['adam', 'rmsprop', 'adadelta'])
     lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
-    update_interval = trial.suggest_categorical("update_interval", [5, 10, 20])
+    update_interval = trial.suggest_categorical("update_interval", [10, 20])
     soft_kmean = trial.suggest_categorical("soft_kmean", [True, False])
     tol = trial.suggest_categorical("tol", [1e-3, 1e-4, 1e-5])
 
@@ -72,7 +72,7 @@ def objective(trial, adata, args):
 
     # Clustering Params
     alpha = trial.suggest_float("alpha", 1.0, 5.0)
-    n_clusters = trial.suggest_categorical("n_clusters", [5, 10, 15, 20, 30])
+    n_clusters = trial.suggest_categorical("n_clusters", [10, 15, 20, 30])
     weight_choices = [
         (1.0, 1.0, 0.0, 0.1), (1.0, 1.0, 0.0, 0.5), (1.0, 1.0, 0.0, 1.0),
         (1.0, 1.0, 0.0, 2.0), (1.0, 0.5, 0.0, 1.0), (1.0, 1.0, 0.1, 0.5),
