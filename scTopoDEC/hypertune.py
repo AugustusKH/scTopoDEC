@@ -220,7 +220,9 @@ def hyperparams_tune(args, adata_input=None):
     # Pre-process the data according to the best n_top_genes found
     adata_hypertune = adata.copy()
     sc.pp.highly_variable_genes(adata_hypertune, n_top_genes=best_params['n_top_genes'], flavor='seurat_v3')
-    adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
+    hv_mask = adata_hypertune.var['highly_variable'].values
+    adata_hypertune = adata_hypertune[:, hv_mask].copy()
+    #adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
     adata_hypertune = io.normalize(adata_hypertune, 
                                    filter_min_counts=True, 
                                    size_factors=True, 
