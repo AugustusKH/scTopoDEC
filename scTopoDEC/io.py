@@ -1,4 +1,4 @@
-import pickle, os, numbers
+import pickle, os, numbers, h5py
 import numpy as np
 import scipy as sp
 import pandas as pd
@@ -171,3 +171,21 @@ def write_text_matrix(matrix, filename, rownames=None, colnames=None, transpose=
 def read_pickle(inputfile):
     with open(inputfile, "rb") as f:
         return pickle.load(f)
+
+
+def h5_to_adata(path):
+    with h5py.File(path, 'r') as f:
+        # Create the AnnData object with the noisy counts
+        adata = sc.AnnData(X=f['X'][:].astype(np.float32))
+        
+        # Add Ground Truth labels to .obs
+        adata.obs['group'] = f['Y'][:].astype(str)
+        
+        # Add True Counts to .layers
+        adata.layers['true_counts'] = f['true_counts'][:].astype(np.float32)
+        
+        # Set gene and cell names
+        adata.var_names = f['var_names'][:].astype(str)
+        adata.obs_names = f['obs_names'][:].astype(str)
+        
+    return adata
