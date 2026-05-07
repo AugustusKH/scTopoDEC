@@ -17,6 +17,8 @@ from .metric import cluster_acc
 from .train import pretrain, train, ramp_train 
 from .utils import set_reproducibility 
 
+import traceback
+
 
 
 def objective(trial, adata, args):
@@ -213,21 +215,41 @@ def hyperparams_tune(args, adata_input=None):
     best_params = study.best_params
 
     # 3. Robust check for the best model
-    print("\n" + "-"*15 + " Starting Final Robustness Check " + "-"*15)
-    final_verification_seeds = [50, 150, 999]
-    final_ari_scores = []
+    # print("\n" + "-"*15 + " Starting Final Robustness Check " + "-"*15)
+    # final_verification_seeds = [50, 150, 999]
+    # final_ari_scores = []
 
     # Pre-process the data according to the best n_top_genes found
-    adata_hypertune = adata.copy()
-    sc.pp.highly_variable_genes(adata_hypertune, n_top_genes=best_params['n_top_genes'], flavor='seurat_v3')
-    hv_mask = adata_hypertune.var['highly_variable'].values
-    adata_hypertune = adata_hypertune[:, hv_mask].copy()
-    #adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
-    adata_hypertune = io.normalize(adata_hypertune, 
-                                   filter_min_counts=True, 
-                                   size_factors=True, 
-                                   logtrans_input=True, 
-                                   normalize_input=True)
+    try:
+        print("\n" + "-"*15 + " Starting Final Robustness Check " + "-"*15)
+        final_verification_seeds = [50, 150, 999]
+        final_ari_scores = []
+
+        adata_hypertune = adata.copy()
+        sc.pp.highly_variable_genes(adata_hypertune, n_top_genes=best_params['n_top_genes'], flavor='seurat_v3')
+        hv_mask = adata_hypertune.var['highly_variable'].values
+        adata_hypertune = adata_hypertune[:, hv_mask].copy()
+        #adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
+        adata_hypertune = io.normalize(adata_hypertune, 
+                                       filter_min_counts=True, 
+                                       size_factors=True, 
+                                       logtrans_input=True, 
+                                       normalize_input=True)
+    except Exception:
+        print("\n[!] CRASH DETECTED. Printing full traceback:")
+        traceback.print_exc()
+        sys.stdout.flush()
+
+    # adata_hypertune = adata.copy()
+    # sc.pp.highly_variable_genes(adata_hypertune, n_top_genes=best_params['n_top_genes'], flavor='seurat_v3')
+    # hv_mask = adata_hypertune.var['highly_variable'].values
+    # adata_hypertune = adata_hypertune[:, hv_mask].copy()
+    # #adata_hypertune = adata_hypertune[:, adata_hypertune.var.highly_variable].copy()
+    # adata_hypertune = io.normalize(adata_hypertune, 
+    #                                filter_min_counts=True, 
+    #                                size_factors=True, 
+    #                                logtrans_input=True, 
+    #                                normalize_input=True)
 
     for seed in final_verification_seeds:
         print(f">>> Verifying Seed {seed}...")
