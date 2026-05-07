@@ -270,7 +270,7 @@ def hyperparams_tune(args, adata_input=None):
             verbose=False
         )
 
-        if args.ground_truth in adata_hypertune.obs:
+        if args.ground_truth is not None and args.ground_truth in adata_hypertune.obs.columns:
             y_true = adata_hypertune.obs[args.ground_truth].values
             final_ari = metrics.adjusted_rand_score(y_true, y_pred)
             final_ari_scores.append(final_ari)
