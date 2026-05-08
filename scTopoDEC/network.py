@@ -92,19 +92,22 @@ class Autoencoder():
             if self.batchnorm:
                 last_hidden = layers.BatchNormalization(center=True, scale=False)(last_hidden)
 
-            # Modern Activation lookup
-            if self.activation in ('PReLU', 'LeakyReLU'):
+            # Add each layer with activation function except latent layer
+            if stage != 'latent':
 
-                if self.activation == 'PReLU':
-                    last_hidden = layers.PReLU(name='%s_act' % layer_name)(last_hidden)
+                # Modern Activation lookup
+                if self.activation in ('PReLU', 'LeakyReLU'):
+
+                    if self.activation == 'PReLU':
+                        last_hidden = layers.PReLU(name='%s_act' % layer_name)(last_hidden)
+                    else:
+                        last_hidden = layers.LeakyReLU(name='%s_act' % layer_name)(last_hidden)
+                        
                 else:
-                    last_hidden = layers.LeakyReLU(name='%s_act' % layer_name)(last_hidden)
-                    
-            else:
-                last_hidden = layers.Activation(self.activation, name='%s_act' % layer_name)(last_hidden)
+                    last_hidden = layers.Activation(self.activation, name='%s_act' % layer_name)(last_hidden)
 
-            if hid_drop > 0.0:
-                last_hidden = layers.Dropout(hid_drop, name='%s_drop' % layer_name)(last_hidden)
+                if hid_drop > 0.0:
+                    last_hidden = layers.Dropout(hid_drop, name='%s_drop' % layer_name)(last_hidden)
 
         self.decoder_output = last_hidden
         self.build_output()
