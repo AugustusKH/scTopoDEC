@@ -251,9 +251,16 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
 
     for epoch in tqdm(range(epochs), desc="Training DEC", unit="epoch"):
         if epoch % update_interval == 0:
+            latent_feat = network.encoder.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
             q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
             p = compute_target_distribution(q)
             y_pred = q.argmax(1)
+
+            # If ARI starts dropping, re-align centers to the manifold
+            if epoch > 0 and epoch % (update_interval * 5) == 0:
+                kmeans = KMeans(n_clusters=network.n_clusters, n_init=10)
+                new_centers = kmeans.fit(latent_feat).cluster_centers_
+                clustering_layer.set_weights([new_centers])
 
             # --- Evaluation Block ---
             if verbose and ground_truth is not None and ground_truth in adata.obs:
@@ -481,9 +488,16 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
         pbar = tqdm(range(epochs_per_phase), desc=f"Res {current_res}", unit="epoch")
         for epoch in pbar: 
             if epoch % update_interval == 0:
+                latent_feat = network.encoder.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
                 q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
                 p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
+
+                # If ARI starts dropping, re-align centers to the manifold
+                if epoch > 0 and epoch % (update_interval * 5) == 0:
+                    kmeans = KMeans(n_clusters=network.n_clusters, n_init=10)
+                    new_centers = kmeans.fit(latent_feat).cluster_centers_
+                    clustering_layer.set_weights([new_centers])
 
                 # --- Evaluation block ---
                 if verbose and ground_truth is not None and ground_truth in adata.obs:

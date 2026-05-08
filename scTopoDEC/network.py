@@ -21,6 +21,7 @@ DispAct = lambda x: ops.clip(ops.softplus(x), 1e-4, 1e4)
 
 advanced_activations = ('PReLU', 'LeakyReLU')
 
+
 class Autoencoder():
     def __init__(self, input_size, output_size=None, hidden_size=(256, 64, 32, 64, 256),
                  noise_sd=0., l2_coef=0., l1_coef=0., l2_enc_coef=0., l1_enc_coef=0.,
@@ -53,6 +54,7 @@ class Autoencoder():
             assert len(self.hidden_dropout) == len(self.hidden_size)
         else:
             self.hidden_dropout = [self.hidden_dropout]*len(self.hidden_size)
+
 
     def build(self):
         self.input_layer = layers.Input(shape=(self.input_size,), name='count', sparse=True)
@@ -107,6 +109,7 @@ class Autoencoder():
         self.decoder_output = last_hidden
         self.build_output()
 
+
     def build_output(self):
         mean = layers.Dense(
             self.output_size, kernel_initializer=self.init,
@@ -117,6 +120,7 @@ class Autoencoder():
         output = ColwiseMultLayer(name='output')([mean, self.sf_layer])
         self.model = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=output)
         self.encoder = self.get_encoder()
+
 
     def save(self):
         if self.file_path:
@@ -140,6 +144,7 @@ class Autoencoder():
             self.model = temp_model
             self.encoder = temp_enc
 
+
     @staticmethod
     def load_from_path(path):
         # 1. Load the pickle (metadata)
@@ -153,15 +158,18 @@ class Autoencoder():
         obj.load_weights(os.path.join(path, 'weights.weights.h5'))
         return obj
 
+
     def save_weights(self, filename):
         # filename should be the path to 'weights.weights.h5'
         self.model.save_weights(filename)
+
 
     def load_weights(self, filename):
         # filename should be the path to 'weights.weights.h5'
         self.model.load_weights(filename)
         self.encoder = self.get_encoder()
         self.decoder = None  # get_decoder()
+
 
     def get_encoder(self, activation=False, dropout=False):
         if dropout:
@@ -174,6 +182,7 @@ class Autoencoder():
         return models.Model(inputs=self.model.input, 
                      outputs=self.model.get_layer(target).output,
                      name='encoder')
+
 
     def get_decoder(self, activation=False, dropout=False):
         if dropout:
@@ -200,6 +209,7 @@ class Autoencoder():
         
         return models.Model(inputs=decoder_input, outputs=curr, name='decoder')
 
+
     def predict(self, adata, mode='denoise', return_info=False, copy=False):
         assert mode in ('denoise', 'latent', 'full'), 'Unknown mode'
         adata = adata.copy() if copy else adata
@@ -217,6 +227,7 @@ class Autoencoder():
             adata.X = self.model.predict(inputs)
 
         return adata if copy else None
+
 
 class ZINBAutoencoder(Autoencoder):
     def build_output(self):
@@ -254,6 +265,7 @@ class ZINBAutoencoder(Autoencoder):
         self.model = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=output)
         self.encoder = self.get_encoder()
 
+
     def predict(self, adata, mode='denoise', return_info=False, copy=False, colnames=None):
         adata = adata.copy() if copy else adata
 
@@ -280,11 +292,13 @@ class ZINBAutoencoder(Autoencoder):
 
         return adata if copy else None
 
+
 class DEC(ZINBAutoencoder):
     def __init__(self, n_clusters, alpha=1.0, **kwargs):
         super().__init__(**kwargs)
         self.n_clusters = n_clusters
         self.alpha = alpha
+
 
     def build_output(self):
         super().build_output()
@@ -304,6 +318,41 @@ class DEC(ZINBAutoencoder):
         self.model = models.Model(inputs=self.zinb_ae.inputs,
                                   outputs=[clustering_layer, self.zinb_ae.output],
                                   name='scDEC_model')
+        
+        self.encoder = self.get_encoder()
+
+
+    def get_encoder(self):
+        """
+        Deterministic encoder for DEC phase. 
+        Accepts both inputs to maintain compatibility with train_step, 
+        but only processes counts through a noise-free path.
+        """
+        hidden = self.input_layer
+        
+        # Extract true layers
+        found_latent = False
+        for layer in self.model.layers:
+            # Skip noise and dropout during inference for P calculation
+            if isinstance(layer, (layers.GaussianNoise, layers.Dropout)):
+                continue
+            
+            # Skip the size factor input layer
+            if 'size_factors' in layer.name:
+                continue
+
+            # Avoiding input layer redundancy
+            if isinstance(layer, layers.InputLayer):
+                continue
+                
+            hidden = layer(hidden)
+            
+            if layer.name == 'latent' or layer.name == 'latent_act':
+                found_latent = True
+                break
+        
+        return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
+    
 
     def predict(self, adata, mode='clustering', return_info=False, copy=False):
         assert mode in ('clustering'), 'This model is used for clustering.'
