@@ -336,23 +336,23 @@ class DEC(ZINBAutoencoder):
         # Extract true layers
         found_latent = False
         for layer in self.model.layers:
-            # Skip noise and dropout during inference for P calculation
-            if isinstance(layer, (layers.GaussianNoise, layers.Dropout)):
+            # Skip noise, dropout, and any input layers
+            if isinstance(layer, (layers.InputLayer, layers.GaussianNoise, layers.Dropout)):
                 continue
             
             # Skip the size factor input layer
             if 'size_factors' in layer.name:
                 continue
 
-            # Avoiding input layer redundancy
-            if isinstance(layer, layers.InputLayer):
-                continue
-                
             hidden = layer(hidden)
             
+            # Stop immediately after we get the bottle neck layer
             if layer.name == 'latent' or layer.name == 'latent_act':
                 found_latent = True
                 break
+
+        if not found_latent:
+            print("Warning: Latent layer not found during encoder extraction.")
         
         return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
     
