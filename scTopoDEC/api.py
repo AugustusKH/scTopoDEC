@@ -390,6 +390,7 @@ def scTopoDEC(adata,                        # single-cell args
         # Clustering pathway
         if ramp_mode:
             ramp_train(adata_train, network, 
+                       random_state=random_state,
                        optimizer=optimizer, 
                        learning_rate=learning_rate, 
                        epochs=epochs, 
@@ -419,6 +420,7 @@ def scTopoDEC(adata,                        # single-cell args
                        **training_kwds)
         else:
             train(adata_train, network, 
+                  random_state=random_state,
                   optimizer=optimizer, 
                   learning_rate=learning_rate, 
                   epochs=epochs, 

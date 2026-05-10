@@ -158,13 +158,13 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 # Clustering (DEC)
 # ==============================================================================
 
-def train(adata, network, train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
-          save_train_interval=5, optimizer='adam', learning_rate=0.01, epochs=300, update_interval=10, 
-          batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), soft_kmean=True, 
-          use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_output_dir=None, 
-          initial_pretrain_weights=None, save_pretrain_weights=False, pretrain_epochs=200, 
-          pretrain_optimizer='adam', pretrain_learning_rate=0.01, reduce_lr_patience=10, 
-          early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
+def train(adata, network, random_state=0, train_output_dir=None, initial_train_weights=None, 
+          save_train_weights=True, save_train_interval=5, optimizer='adam', learning_rate=0.01, 
+          epochs=300, update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
+          soft_kmean=True, use_raw_as_output=True, verbose=True, ground_truth=None, 
+          pretrain_output_dir=None, initial_pretrain_weights=None, save_pretrain_weights=False, 
+          pretrain_epochs=200, pretrain_optimizer='adam', pretrain_learning_rate=0.01, 
+          reduce_lr_patience=10, early_stop_patience=15, cluster_early_stop=False, homology_dim=1, 
           maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
           topo_latent_mode='raw', n_components=30, k=15, t=8, callbacks=None, **kwds):
    
@@ -203,7 +203,7 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
 
     # 2. k-mean for centroid initialization
     print("\n...Initializing cluster centers with k-means...")
-    kmeans = KMeans(n_clusters=network.n_clusters, n_init=20)
+    kmeans = KMeans(n_clusters=network.n_clusters, n_init=20, random_state=random_state)
     latent_feat = network.encoder.predict({'count': adata.X, 
                                            'size_factors': adata.obs.size_factors.values})
     y_pred = kmeans.fit_predict(latent_feat)
@@ -382,7 +382,7 @@ def train(adata, network, train_output_dir=None, initial_train_weights=None, sav
     return y_pred
 
 
-def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
+def ramp_train(adata, network, random_state=0, train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
                save_train_interval=5, optimizer='adam', learning_rate=0.001, epochs=300, update_interval=10, 
                batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), soft_kmean=True, use_raw_as_output=True, 
                verbose=True, ground_truth=None, pretrain_output_dir=None, initial_pretrain_weights=None, 
@@ -424,7 +424,7 @@ def ramp_train(adata, network, train_output_dir=None, initial_train_weights=None
 
     # 2. k-mean for centroid initialization
     print("\n...Initializing cluster centers with k-means...")
-    kmeans = KMeans(n_clusters=network.n_clusters, n_init=20)
+    kmeans = KMeans(n_clusters=network.n_clusters, n_init=20, random_state=random_state)
     latent_feat = network.encoder.predict({'count': adata.X, 
                                            'size_factors': adata.obs.size_factors.values})
     y_pred = kmeans.fit_predict(latent_feat)
