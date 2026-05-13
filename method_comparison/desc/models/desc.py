@@ -58,8 +58,8 @@ def train_single(data, dims=None, alpha=1.0, tol=0.005, init='glorot_uniform',
                  use_ae_weights=False, save_encoder_weights=False,
                  save_encoder_step=4, save_dir='result_tmp', max_iter=1000,
                  epochs_fit=5, num_Cores=None, use_GPU=True, GPU_id=None,
-                 random_seed=201809, verbose=True, do_tsne=False,
-                 do_umap=False, kernel_clustering="t"):
+                 random_seed=201809, verbose=True, do_tsne=False, learning_rate_tsne=150, 
+                 perplexity=30, do_umap=False, kernel_clustering="t"):
     
     # 1. Handle AnnData Conversion
     if isinstance(data, AnnData):
@@ -116,6 +116,14 @@ def train_single(data, dims=None, alpha=1.0, tol=0.005, init='glorot_uniform',
     adata.obsm[f'X_Embeded_z{res_key}'] = Embeded_z
     
     # 6. Optional Visualization
+    if do_tsne:
+        print(f"Generating t-SNE for resolution {res_key}...")
+        sc.tl.tsne(adata, use_rep=f"X_Embeded_z{res_key}", 
+                   learning_rate=learning_rate_tsne, 
+                   perplexity=perplexity)
+        # Move to named slot to prevent overwrite if running multiple resolutions
+        adata.obsm[f"X_tsne{res_key}"] = adata.obsm["X_tsne"].copy()
+        
     if do_umap:
         sc.pp.neighbors(adata, n_neighbors=n_neighbors, use_rep=f"X_Embeded_z{res_key}")
         sc.tl.umap(adata)
