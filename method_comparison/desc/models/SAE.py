@@ -215,7 +215,7 @@ class SAE(object):
         print('Fine-tuning end-to-end...')
 
         for j in range(math.ceil(epochs / 50)):
-            lr = pow(10, -j)
+            lr = float(pow(10, -j))
             print(f'Learning rate: {lr}')
             self.autoencoders.compile(optimizer=SGD(learning_rate=lr, momentum=0.9), loss='mse')
             
