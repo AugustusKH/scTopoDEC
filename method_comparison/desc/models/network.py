@@ -141,7 +141,7 @@ class DescModel(object):
         sae = SAE(dims=self.dims, act=activation, drop_rate=drop_rate, batch_size=self.batch_size,
                   actincenter=actincenter, init=init, use_earlyStop=use_earlyStop, save_dir=self.save_dir)
         
-        ae_weights_path = os.path.join(self.save_dir, 'ae_weights.h5')
+        ae_weights_path = os.path.join(self.save_dir, 'ae_weights.weights.h5')
         
         if use_ae_weights and os.path.isfile(ae_weights_path):
             print(f"Loading AE weights: {ae_weights_path}")
