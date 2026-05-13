@@ -114,6 +114,7 @@ def train_single(data, dims=None, alpha=1.0, tol=0.005, init='glorot_uniform',
     y_pred = np.argmax(q_pred, axis=1)
     adata.obs[f'desc_{res_key}'] = pd.Categorical(y_pred.astype(str))
     adata.obsm[f'X_Embeded_z{res_key}'] = Embeded_z
+    adata.uns[f'prob_matrix{res_key}'] = q_pred
     
     # 6. Optional Visualization
     if do_tsne:
