@@ -173,9 +173,16 @@ class SAE(object):
                                    callbacks=callbacks, verbose=1)
 
             # Pass features through the current encoder to get inputs for the next stack
-            # In Keras 3, we use a sub-model or get_layer().output
-            feature_model = Model(inputs=self.stacks[i].input, 
-                                  outputs=self.stacks[i].get_layer(f'encoder_{i}').output)
+            # We use the internal layers directly to avoid the 'sequential has no defined input' error
+            current_stack = self.stacks[i]
+            
+            # Create a functional model using the layers of the stack
+            # This is more robust in Keras 3 for extracting intermediate features
+            input_layer = current_stack.layers[0] # The Dropout layer
+            encoder_layer = current_stack.get_layer(f'encoder_{i}')
+            
+            # Construct a temporary model to extract the bottleneck features
+            feature_model = Model(inputs=current_stack.input, outputs=encoder_layer.output)
             features = feature_model.predict(features)
 
 
