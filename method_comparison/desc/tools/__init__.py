@@ -14,7 +14,7 @@ from .test import run_desc_test
 from .read import read_10X
 from .write import write_desc_result
 
-# Downstream & Specialized Utilities
+# Downstream and Specialized Utilities
 # Uncomment these as you update the corresponding files
 # from .downstream import run_tsne, run_umap
 # from .preprocessing import scale_bygroup
