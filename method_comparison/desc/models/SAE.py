@@ -168,7 +168,7 @@ class SAE(object):
             current_stack = self.stacks[i]
             
             for j in range(int(decaying_step)):
-                lr = pow(10, -1 - j)
+                lr = float(pow(10, -1 - j))
                 print(f'Learning rate: {lr}')
                 current_stack.compile(optimizer=SGD(learning_rate=lr, momentum=0.9), loss='mse')
                 
