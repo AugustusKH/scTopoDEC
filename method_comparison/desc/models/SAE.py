@@ -184,12 +184,11 @@ class SAE(object):
             # Extract the specific encoder layer from the stack
             encoder_layer = current_stack.get_layer(f'encoder_{i}')
             
-            # Construct a functional Model to extract intermediate features.
-            # Because .build() was called, current_stack.input is now defined.
-            feature_model = Model(inputs=current_stack.input, outputs=encoder_layer.output)
-            
-            # Generate input features for the next stack in the loop
-            features = feature_model.predict(features)
+            # Directly extract features using the encoder layer within the stack.
+            # In Keras 3, calling the layer directly on the data is more robust than 
+            # creating a temporary functional Model for intermediate extraction.
+            encoder_layer = current_stack.get_layer(f'encoder_{i}')
+            features = encoder_layer(features).numpy() # Convert back to numpy for next fit() call
 
 
     def pretrain_autoencoders(self, x, epochs=300):
