@@ -118,7 +118,7 @@ class SAE(object):
         return Model(inputs=x, outputs=y, name="AE"), Model(inputs=x, outputs=h, name="encoder")
 
 
-    def make_stack(self, ith, random_seed=0):
+    def make_stack(self, ith, seed=0):
         """ 
         Make the ith denoising autoencoder for layer-wise pretraining. It has single hidden layer. The input data is 
         corrupted by Dropout(drop_rate)

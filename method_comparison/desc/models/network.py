@@ -133,7 +133,11 @@ class DescModel(object):
         
 
     def pretrain(self, init, activation, actincenter, drop_rate, is_stacked, use_earlyStop, use_ae_weights):
-        from SAE import SAE 
+        try:
+            from .SAE import SAE # Try relative import first
+        except (ImportError, ValueError):
+            from SAE import SAE  # Fallback for direct script execution
+
         sae = SAE(dims=self.dims, act=activation, drop_rate=drop_rate, batch_size=self.batch_size,
                   actincenter=actincenter, init=init, use_earlyStop=use_earlyStop, save_dir=self.save_dir)
         
