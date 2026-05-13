@@ -129,19 +129,27 @@ class SAE(object):
         in_out_dim = self.dims[ith]
         hidden_dim = self.dims[ith+1]
         
-        # Logic for middle vs output layer activations
         output_act = self.actincenter if ith == 0 else self.activation
         hidden_act = self.actincenter if ith == self.n_stacks - 1 else self.activation
 
-        model = Sequential([
-            Dropout(self.drop_rate, input_shape=(in_out_dim,), seed=seed),
-            Dense(units=hidden_dim, activation=hidden_act, 
-                  kernel_initializer=self.get_init(seed=seed), name=f'encoder_{ith}'),
-            Dropout(self.drop_rate, seed=seed + 1),
-            Dense(units=in_out_dim, activation=output_act, 
-                  kernel_initializer=self.get_init(seed=seed + 1), name=f'decoder_{ith}')
-        ])
-        return model
+        # --- DEFINING AS FUNCTIONAL MODEL ---
+        inputs = Input(shape=(in_out_dim,), name=f'stack_input_{ith}')
+        
+        x = Dropout(self.drop_rate, seed=seed)(inputs)
+        x = Dense(units=hidden_dim, activation=hidden_act, 
+                  kernel_initializer=self.get_init(seed=seed), 
+                  name=f'encoder_{ith}')(x)
+        
+        # We store this specifically to extract it later
+        encoder_out = x 
+        
+        x = Dropout(self.drop_rate, seed=seed + 1)(x)
+        outputs = Dense(units=in_out_dim, activation=output_act, 
+                        kernel_initializer=self.get_init(seed=seed + 1), 
+                        name=f'decoder_{ith}')(x)
+        
+        # Returning a Functional Model ensures .input and .output are NEVER undefined
+        return Model(inputs=inputs, outputs=outputs, name=f'stack_{ith}')
 
 
     def pretrain_stacks(self, x, epochs=200, decaying_step=3):
@@ -158,14 +166,7 @@ class SAE(object):
         for i in range(self.n_stacks):
             print(f'--- Pretraining Layer {i+1}/{self.n_stacks} ---')
             current_stack = self.stacks[i]
-
-            # --- DATA-DRIVEN BUILD ---
-            # Keras 3 often ignores .build() until it sees actual data.
-            # Passing 1 sample forces the creation of 'inbound_nodes' and 'input'.
-            dummy_input = features[0:1]
-            _ = current_stack(dummy_input) 
-            # -------------------------
-
+            
             for j in range(int(decaying_step)):
                 lr = pow(10, -1 - j)
                 print(f'Learning rate: {lr}')
@@ -180,13 +181,16 @@ class SAE(object):
                                    epochs=math.ceil(epochs / decaying_step),
                                    callbacks=callbacks, verbose=1)
 
-            # Now that the stack has been called (dummy pass) and fit (training),
-            # current_stack.input is guaranteed to be defined.
+            # --- PERMANENT EXTRACTION LOGIC ---
+            # Extract the encoder layer output from the Functional stack
             encoder_layer = current_stack.get_layer(f'encoder_{i}')
-            feature_model = Model(inputs=current_stack.input, outputs=encoder_layer.output)
             
-            # Predict features for the next stack
-            features = feature_model.predict(features)
+            # Construct a mini-model to transform data for the next stack
+            # Since the stack is Functional, .input is guaranteed to be defined
+            feature_extractor = Model(inputs=current_stack.input, 
+                                      outputs=encoder_layer.output)
+            
+            features = feature_extractor.predict(features)
 
 
     def pretrain_autoencoders(self, x, epochs=300):
