@@ -155,18 +155,17 @@ class SAE(object):
             decayiing_step: learning rate multiplies 0.1 every 'epochs/decaying_step' epochs 
         """
         features = x
-
         for i in range(self.n_stacks):
             print(f'--- Pretraining Layer {i+1}/{self.n_stacks} ---')
-            
-            # Retrieve the current stack
             current_stack = self.stacks[i]
 
-            # --- Keras 3 FORCE BUILD ---
-            # Manually build the model to define graph nodes (input/output tensors)
-            # without waiting for the first fit() call.
-            current_stack.build((None, self.dims[i])) 
-            
+            # --- DATA-DRIVEN BUILD ---
+            # Keras 3 often ignores .build() until it sees actual data.
+            # Passing 1 sample forces the creation of 'inbound_nodes' and 'input'.
+            dummy_input = features[0:1]
+            _ = current_stack(dummy_input) 
+            # -------------------------
+
             for j in range(int(decaying_step)):
                 lr = pow(10, -1 - j)
                 print(f'Learning rate: {lr}')
@@ -181,14 +180,13 @@ class SAE(object):
                                    epochs=math.ceil(epochs / decaying_step),
                                    callbacks=callbacks, verbose=1)
 
-            # Extract the specific encoder layer from the stack
+            # Now that the stack has been called (dummy pass) and fit (training),
+            # current_stack.input is guaranteed to be defined.
             encoder_layer = current_stack.get_layer(f'encoder_{i}')
+            feature_model = Model(inputs=current_stack.input, outputs=encoder_layer.output)
             
-            # Directly extract features using the encoder layer within the stack.
-            # In Keras 3, calling the layer directly on the data is more robust than 
-            # creating a temporary functional Model for intermediate extraction.
-            encoder_layer = current_stack.get_layer(f'encoder_{i}')
-            features = encoder_layer(features).numpy() # Convert back to numpy for next fit() call
+            # Predict features for the next stack
+            features = feature_model.predict(features)
 
 
     def pretrain_autoencoders(self, x, epochs=300):
