@@ -158,31 +158,37 @@ class SAE(object):
 
         for i in range(self.n_stacks):
             print(f'--- Pretraining Layer {i+1}/{self.n_stacks} ---')
+            
+            # Retrieve the current stack
+            current_stack = self.stacks[i]
+
+            # --- Keras 3 FORCE BUILD ---
+            # Manually build the model to define graph nodes (input/output tensors)
+            # without waiting for the first fit() call.
+            current_stack.build((None, self.dims[i])) 
+            
             for j in range(int(decaying_step)):
                 lr = pow(10, -1 - j)
                 print(f'Learning rate: {lr}')
-                self.stacks[i].compile(optimizer=SGD(learning_rate=lr, momentum=0.9), loss='mse')
+                current_stack.compile(optimizer=SGD(learning_rate=lr, momentum=0.9), loss='mse')
                 
                 callbacks = []
                 if self.use_earlyStop:
                     callbacks.append(EarlyStopping(monitor='loss', min_delta=1e-4, patience=10))
                 
-                self.stacks[i].fit(features, features, 
+                current_stack.fit(features, features, 
                                    batch_size=self.batch_size, 
                                    epochs=math.ceil(epochs / decaying_step),
                                    callbacks=callbacks, verbose=1)
 
-            # Pass features through the current encoder to get inputs for the next stack
-            # We use the internal layers directly to avoid the 'sequential has no defined input' error
-            current_stack = self.stacks[i]
-            
-            # Create a functional model using the layers of the stack
-            # This is more robust in Keras 3 for extracting intermediate features
-            input_layer = current_stack.layers[0] # The Dropout layer
+            # Extract the specific encoder layer from the stack
             encoder_layer = current_stack.get_layer(f'encoder_{i}')
             
-            # Construct a temporary model to extract the bottleneck features
+            # Construct a functional Model to extract intermediate features.
+            # Because .build() was called, current_stack.input is now defined.
             feature_model = Model(inputs=current_stack.input, outputs=encoder_layer.output)
+            
+            # Generate input features for the next stack in the loop
             features = feature_model.predict(features)
 
 
