@@ -38,6 +38,8 @@ def scTopoDEC(adata,                        # single-cell args
         ae_type='dec',
         mode='clustering',
         n_clusters='10',
+        n_neighbors=20, 
+        resolution=0.8,
         use_hvg=True,         
         n_top_genes=2000,      
         alpha=1.,
@@ -125,7 +127,14 @@ def scTopoDEC(adata,                        # single-cell args
         n_clusters : int or str, optional (default: 10)
             The number of clusters to find during the DEC phase. This determines the number 
             of centroids initialized by K-Means and the output dimensions of the clustering 
-            layer.
+            layer. If n_cluster = 0, then the model will detect the number of clusters 
+            automatically using the Leiden algorithm.
+        n_neighbors : int, optional (default: 20) 
+            The number of nearest neighbors used to calculate the Leiden algorithm for automatic
+            detection of the number of clusters.  
+        resolution : float, optional (default: 0.8)
+            The resolution parameter for the Leiden algorithm for automatic detection of 
+            the number of clusters.
         use_hvg : bool, optional (default: True)
             If True, the model identifies and trains only on Highly Variable Genes (HVGs). 
             This significantly improves training stability, reduces the risk of NaN errors, 
@@ -379,7 +388,16 @@ def scTopoDEC(adata,                        # single-cell args
     }
 
     if ae_type == 'dec':
-        model_kwargs['n_clusters'] = int(n_clusters)
+        n_cl = int(n_clusters)
+        if n_cl > 0:
+            model_kwargs['n_clusters'] = n_cl
+            training_kwds['auto_detect'] = False
+        else:
+            model_kwargs['n_clusters'] = 1 
+            training_kwds['auto_detect'] = True
+            training_kwds['n_neighbors'] = n_neighbors
+            training_kwds['resolution'] = resolution
+
         model_kwargs['alpha'] = alpha
 
     network = network_options[ae_type](**model_kwargs)

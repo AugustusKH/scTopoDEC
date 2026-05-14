@@ -357,6 +357,36 @@ class DEC(ZINBAutoencoder):
         return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
     
 
+    def get_initial_clusters(self, adata, n_neighbors=20, resolution=0.8):
+        """Detects initial clusters in latent space using Leiden."""
+        # 1. Get latent representation
+        inputs = {
+            'count': adata.X, 
+            'size_factors': adata.obs.size_factors.values
+        }
+        z = self.encoder.predict(inputs, verbose=0)
+    
+        # 2. Community detection
+        adata_latent = sc.AnnData(z)
+        sc.pp.neighbors(adata_latent, n_neighbors=n_neighbors, use_rep="X")
+        sc.tl.leiden(adata_latent, resolution=resolution)
+    
+        # 3. Calculate labels and centroids
+        labels = adata_latent.obs['leiden'].astype(int).values
+        centroids = np.array([z[labels == i].mean(axis=0) for i in sorted(np.unique(labels))])
+    
+        return centroids, labels
+    
+
+    def init_clustering_layer(self, n_clusters, weights):
+        """Dynamically re-initializes the clustering layer with detected centroids."""
+        self.n_clusters = n_clusters
+        # Rebuild the model with the new number of clusters
+        self.build_output() 
+        # Set the centroids found by Leiden
+        self.model.get_layer(name='clustering').set_weights([weights])
+    
+
     def predict(self, adata, mode='clustering', return_info=False, copy=False):
         assert mode in ('clustering'), 'This model is used for clustering.'
         adata = adata.copy() if copy else adata
