@@ -369,7 +369,7 @@ class DEC(ZINBAutoencoder):
         # 2. Community detection
         adata_latent = sc.AnnData(z)
         sc.pp.neighbors(adata_latent, n_neighbors=n_neighbors, use_rep="X")
-        sc.tl.leiden(adata_latent, resolution=resolution)
+        sc.tl.leiden(adata_latent, resolution=resolution, flavor='igraph', n_iterations=2)
     
         # 3. Calculate labels and centroids
         labels = adata_latent.obs['leiden'].astype(int).values
