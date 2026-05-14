@@ -21,7 +21,7 @@ from .metric import cluster_acc
 # ==============================================================================
 
 #@tf.function
-def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer, 
+def train_step(x_counts, x_sf, x_batch, y_p, y_raw, network, model, clustering_layer, 
                ae_loss_fn, opt_dec, loss_weights, soft_kmean, topo_size, pg_dist, 
                order, topo_latent_mode, k, t, topo_input_batch=None, rips_layer=None):
     """
@@ -31,8 +31,14 @@ def train_step(x_counts, x_sf, y_p, y_raw, network, model, clustering_layer,
     and topological manifold preservation.
     """
     with tf.GradientTape() as tape:
-        z = network.encoder({'count': x_counts, 'size_factors': x_sf})
-        q, zinb_out = model({'count': x_counts, 'size_factors': x_sf})
+        inputs = {'count': x_counts, 'size_factors': x_sf}
+
+        # Only add batch if it exists
+        if x_batch is not None:
+            inputs['batch'] = x_batch
+
+        z = network.encoder(inputs)
+        q, zinb_out = model(inputs)
         mu = clustering_layer.weights[0] 
         
         # Stability clipping
@@ -132,6 +138,10 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
         'count': adata.X, 
         'size_factors': adata.obs.size_factors.values
     }
+
+    # Add batch to inputs if it exists
+    if 'batch_onehot' in adata.obsm:
+        inputs['batch'] = adata.obsm['batch_onehot']
 
     if output_subset:
         gene_idx = [adata.var_names.get_loc(x) for x in output_subset]
@@ -259,7 +269,11 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 
     for epoch in tqdm(range(epochs), desc="Training DEC", unit="epoch"):
         if epoch % update_interval == 0:
-            q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+            inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
+            if 'batch_onehot' in adata.obsm:
+                inputs_eval['batch'] = adata.obsm['batch_onehot']
+
+            q, _ = model.predict(inputs_eval, verbose=0)
             p = compute_target_distribution(q)
             y_pred = q.argmax(1)
 
@@ -301,6 +315,12 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 
             x_c = tf.cast(adata.X[batch_idx], tf.float32)
             x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
+
+            # Extract Batch slice
+            x_b = None
+            if 'batch_onehot' in adata.obsm:
+                x_b = tf.cast(adata.obsm['batch_onehot'][batch_idx], tf.float32)
+
             topo_input_batch = None
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
             y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
@@ -309,7 +329,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
                 topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
             loss_vals = train_step(
-                x_c, x_s, y_p_batch, y_r, 
+                x_c, x_s, x_b, y_p_batch, y_r, 
                 network=network, 
                 model=model, 
                 clustering_layer=clustering_layer,
@@ -504,7 +524,11 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         pbar = tqdm(range(epochs_per_phase), desc=f"Res {current_res}", unit="epoch")
         for epoch in pbar: 
             if epoch % update_interval == 0:
-                q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+                inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
+                if 'batch_onehot' in adata.obsm:
+                    inputs_eval['batch'] = adata.obsm['batch_onehot']
+
+                q, _ = model.predict(inputs_eval, verbose=0)
                 p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
 
@@ -538,6 +562,12 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
 
                 x_c = tf.cast(adata.X[batch_idx], tf.float32)
                 x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
+
+                # Extract Batch slice
+                x_b = None
+                if 'batch_onehot' in adata.obsm:
+                    x_b = tf.cast(adata.obsm['batch_onehot'][batch_idx], tf.float32)
+
                 topo_input_batch = None
                 y_p_batch = tf.cast(p[batch_idx], tf.float32)
                 y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
@@ -546,7 +576,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
                     topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
 
                 loss_vals = train_step(
-                    x_c, x_s, y_p_batch, y_r, 
+                    x_c, x_s, x_b, y_p_batch, y_r, 
                     network=network, 
                     model=model, 
                     clustering_layer=clustering_layer,

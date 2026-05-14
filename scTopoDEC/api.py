@@ -6,6 +6,7 @@ os.environ['TF_CUDNN_DETERMINISTIC'] = '1'
 import csv, tempfile, shutil, random
 import anndata
 import numpy as np
+import pandas as pd
 import scanpy as sc
 
 try:
@@ -60,6 +61,7 @@ def scTopoDEC(adata,                        # single-cell args
         update_interval=10,
         tol=1e-3,
         ground_truth=None,
+        batch_key=None,
         res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0),
         ramp_mode=False,
         cluster_early_stop=True,
@@ -195,6 +197,9 @@ def scTopoDEC(adata,                        # single-cell args
             A key in `adata.obs` containing known cell-type labels. If provided, 
             the model will output Accuracy (ACC), Normalized Mutual Info (NMI), 
             and Adjusted Rand Index (ARI) during training to monitor performance.
+        batch_key : `str` or None, optional (default: None)
+            A key in `adata.obs` containing known multiple sample labels. Assigning the key
+            makes the model handles with batch effects.
         res_ramp : `list`, optional (default: (0.0, 0.1, 0.2, 0.5, 1.0))
             A list of scaling factors for the clustering loss weight. This implements 
             a "curriculum learning" strategy where the model first focuses on 
@@ -372,11 +377,24 @@ def scTopoDEC(adata,                        # single-cell args
                       size_factors=normalize_per_cell, 
                       logtrans_input=log1p, 
                       normalize_input=scale)
+    
+    # 4. Handle batch one-hot encoding
+    n_batch = 0
+    if batch_key is not None:
+        if batch_key not in adata_train.obs.columns:
+            raise ValueError(f"batch_key '{batch_key}' not found in adata.obs")
+        
+        # Convert batch categories to one-hot matrix
+        batch_matrix = pd.get_dummies(adata_train.obs[batch_key]).values
+        adata_train.obsm['batch_onehot'] = batch_matrix.astype(np.float32)
+        n_batch = batch_matrix.shape[1]
+        print(f"Batch correction enabled: {n_batch} batches detected.")
 
-    # 4. Model Initialization
+    # 5. Model Initialization
     model_kwargs = {
         'input_size': adata_train.n_vars,
         'output_size': adata_train.n_vars,
+        'n_batch': n_batch,
         'hidden_size': hidden_size,
         'hidden_dropout': hidden_dropout,
         'noise_sd': noise_sd,
@@ -437,6 +455,7 @@ def scTopoDEC(adata,                        # single-cell args
                        pretrain_output_dir=pretrain_output_dir,
                        initial_pretrain_weights=initial_pretrain_weights,
                        save_pretrain_weights=save_pretrain_weights,
+                       n_batch=n_batch,
                        verbose=verbose,
                        **training_kwds)
         else:
@@ -470,6 +489,7 @@ def scTopoDEC(adata,                        # single-cell args
                   pretrain_output_dir=pretrain_output_dir,
                   initial_pretrain_weights=initial_pretrain_weights,
                   save_pretrain_weights=save_pretrain_weights,
+                  n_batch=n_batch,
                   verbose=verbose,
                   **training_kwds)
     else:

@@ -56,10 +56,15 @@ class Autoencoder():
             self.hidden_dropout = [self.hidden_dropout]*len(self.hidden_size)
 
 
-    def build(self):
+    def build(self, n_batch=0):
         self.input_layer = layers.Input(shape=(self.input_size,), name='count', sparse=True)
         self.sf_layer = layers.Input(shape=(1,), name='size_factors')
-        last_hidden = self.input_layer
+
+        if n_batch > 0:
+            self.batch_layer = layers.Input(shape=(n_batch,), name='batch')
+            last_hidden = layers.Concatenate()([self.input_layer, self.batch_layer])
+        else:
+            last_hidden = self.input_layer
 
         if self.noise_sd > 0.0:
             last_hidden = layers.GaussianNoise(self.noise_sd, name='input_noise')(last_hidden)
@@ -69,6 +74,11 @@ class Autoencoder():
 
         for i, (hid_size, hid_drop) in enumerate(zip(self.hidden_size, self.hidden_dropout)):
             center_idx = int(np.floor(len(self.hidden_size) / 2.0))
+            
+            # Inject batch into decoder input (latent space)
+            if i == center_idx + 1 and n_batch > 0:
+                last_hidden = layers.Concatenate()([last_hidden, self.batch_layer])
+
             if i == center_idx:
                 layer_name, stage = 'latent', 'latent'
             elif i < center_idx:
@@ -110,10 +120,14 @@ class Autoencoder():
                     last_hidden = layers.Dropout(hid_drop, name='%s_drop' % layer_name)(last_hidden)
 
         self.decoder_output = last_hidden
-        self.build_output()
+        self.build_output(n_batch=n_batch)
 
 
-    def build_output(self):
+    def build_output(self, n_batch=0):
+        inputs = [self.input_layer, self.sf_layer]
+        if n_batch > 0:
+            inputs.append(self.batch_layer)
+
         mean = layers.Dense(
             self.output_size, kernel_initializer=self.init,
             kernel_regularizer=regularizers.L1L2(l1=self.l1_coef, l2=self.l2_coef),
@@ -121,7 +135,7 @@ class Autoencoder():
         )(self.decoder_output)
         
         output = ColwiseMultLayer(name='output')([mean, self.sf_layer])
-        self.model = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=output)
+        self.model = models.Model(inputs=inputs, outputs=output)
         self.encoder = self.get_encoder()
 
 
@@ -233,7 +247,11 @@ class Autoencoder():
 
 
 class ZINBAutoencoder(Autoencoder):
-    def build_output(self):
+    def build_output(self, n_batch=0):
+        inputs = [self.input_layer, self.sf_layer]
+        if n_batch > 0:
+            inputs.append(self.batch_layer)
+
         # 1. Parameter branches
         pi = layers.Dense(self.output_size, activation='sigmoid', kernel_initializer=self.init,
                        kernel_regularizer=regularizers.L1L2(l1=self.l1_coef, l2=self.l2_coef),
@@ -260,12 +278,12 @@ class ZINBAutoencoder(Autoencoder):
         self.loss = zinb_comp.call
 
         # 5. Map Extra Models for return_info=True in predict()
-        self.extra_models['pi'] = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=pi)
-        self.extra_models['dispersion'] = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=disp)
-        self.extra_models['mean_norm'] = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=mean)
+        self.extra_models['pi'] = models.Model(inputs=inputs, outputs=pi)
+        self.extra_models['dispersion'] = models.Model(inputs=inputs, outputs=disp)
+        self.extra_models['mean_norm'] = models.Model(inputs=inputs, outputs=mean)
 
         # 6. Build the Final Model
-        self.model = models.Model(inputs=[self.input_layer, self.sf_layer], outputs=output)
+        self.model = models.Model(inputs=inputs, outputs=output)
         self.encoder = self.get_encoder()
 
 
@@ -303,8 +321,8 @@ class DEC(ZINBAutoencoder):
         self.alpha = alpha
 
 
-    def build_output(self):
-        super().build_output()
+    def build_output(self, n_batch=0):
+        super().build_output(n_batch=n_batch)
         self.zinb_ae = self.model
         curr = self.input_layer
         
