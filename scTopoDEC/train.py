@@ -234,7 +234,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
             print(f"Restoring training weights from: {initial_train_weights}")
         network.load_weights(initial_train_weights)
     else:
-        print(f"Warning: {initial_train_weights} not found. Starting training from K-Means init.")
+        print(f"Warning: {initial_train_weights} not found. Starting clustering training.")
 
     # 3. Setup Optimizer
     opt_dec = optimizers.get(optimizer)
@@ -472,7 +472,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
             print(f"Restoring training weights from: {initial_train_weights}")
         network.load_weights(initial_train_weights)
     else:
-        print(f"Warning: {initial_train_weights} not found. Starting training from K-Means init.")
+        print(f"Warning: {initial_train_weights} not found. Starting clustering training.")
 
     # 3. Setup Optimizer and Manual Train Step
     opt_dec = optimizers.get(optimizer)
