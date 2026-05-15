@@ -7,12 +7,39 @@ import torch.nn.functional as F
 from torch.distributions import Categorical, Normal
 from torch.distributions import kl_divergence as kl
 
-from scvi.models.utils import broadcast_labels, one_hot
 from scvic.models.modules import DecoderList, EncoderList
 from scvic.utils import log_nb_positive, log_zinb_positive
 
 torch.backends.cudnn.benchmark = True
 logger = logging.getLogger(__name__)
+
+
+
+# ==============================================================================
+# Native Replacements for Legacy scvi.models.utils Utilities
+# ==============================================================================
+def one_hot(index: torch.Tensor, n_cats: int) -> torch.Tensor:
+    """Converts a class index tensor into a standard one-hot tensor."""
+    onehot = torch.zeros(index.size(0), n_cats, device=index.device)
+    onehot.scatter_(1, index.view(-1, 1).long(), 1)
+    return onehot
+
+def broadcast_labels(y: Optional[torch.Tensor], z: torch.Tensor, n_broadcast: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Broadcasts the latent representation 'z' across all possible cluster labels
+    so the GMM classifier can evaluate cluster densities concurrently.
+    """
+    n_samples = z.size(0)
+    
+    # Create an artificial label matrix containing every single cluster ID repeated for each sample
+    labels = torch.arange(n_broadcast, device=z.device).view(-1, 1).repeat(1, n_samples).view(-1, 1)
+    one_hot_labels = one_hot(labels, n_broadcast)
+    
+    # Expand the latent space tensor to match the shape of the full label matrix
+    z_broadcast = z.repeat(n_broadcast, 1)
+    
+    return one_hot_labels, z_broadcast
+    
 
 
 class CVAE(nn.Module):
