@@ -1,36 +1,33 @@
 import logging
-from typing import Tuple
-
 import numpy as np
 import scanpy as sc
-from scvi.inference import Posterior
 from sklearn.mixture import GaussianMixture
+
+# 1. Import modernized, native posterior class instead of scvi
+from scvic.inference import CPosterior
 
 logger = logging.getLogger(__name__)
 
-
 def Louvain(
-        posterior: Posterior,
+        posterior: CPosterior,  # Kept object property tracking cleanly
         n_neighbors: int = 15,
         resolution: float = 1.0
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+):
     """
     Initializes cluster parameters by running Louvain community detection 
-    on the latent space neighborhood graph.
+    on the latent space retrieved from a CPosterior object.
     """
-    # Unpack posterior mapping safely
-    latent, _, _ = posterior.get_latent()
-    n_samples = latent.shape[0]
+    # 2. Extract latent matrix using your updated, dual-return get_latent() method
+    latent, _ = posterior.get_latent()
     
+    n_samples = latent.shape[0]
     sc_latent = sc.AnnData(X=latent)
     if n_samples > 200000:
-        # Fixed typo: "quit" -> "quite", "20,0000" -> "200,000"
         log_message = (
             "Number of samples is quite large, "
             "resample 200,000 samples to estimate parameters"
         )
         logger.info(log_message)
-        # Explicitly copy to avoid modifying views or slicing locked arrays
         sc_latent = sc_latent[np.random.choice(n_samples, 200000, replace=False)].copy()
 
     log_message = "Construct KNN graph before Louvain in scanpy"
@@ -46,7 +43,6 @@ def Louvain(
     n_clusters = np.unique(louvain_labels).shape[0]
     
     if n_clusters <= 1:
-        # Fixed: Changed catastrophic exit() to an informative ValueError
         raise ValueError(
             f"Error: Only {n_clusters} cluster detected. The resolution: "
             f"{resolution} is too small, choose a larger resolution value."
@@ -57,8 +53,6 @@ def Louvain(
     for i in range(n_clusters):
         indices = (louvain_labels == i)
         ratio.append(int(np.sum(indices)))
-        
-        # Calculate cluster centroid
         cluster_mean = latent[indices].mean(axis=0).reshape(1, -1)
         mu.append(cluster_mean)
         
@@ -69,17 +63,18 @@ def Louvain(
 
 
 def GMM(
-        posterior: Posterior,
+        posterior: CPosterior,  # Kept object property tracking cleanly
         n_components: int,
         covariance_type: str = 'full'
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+):
     """
     Initializes cluster parameters by fitting a parametric Gaussian Mixture Model
-    directly to the biological latent embeddings.
+    directly to the biological latent embeddings retrieved from a CPosterior object.
     """
-    latent, _, _ = posterior.get_latent()
-    n_samples = latent.shape[0]
+    # 2. Extract latent matrix using your updated, dual-return get_latent() method
+    latent, _ = posterior.get_latent()
     
+    n_samples = latent.shape[0]
     if n_samples > 200000:
         log_message = (
             "Number of samples is quite large, "
