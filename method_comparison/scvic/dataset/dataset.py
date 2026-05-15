@@ -7,10 +7,112 @@ import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp_sparse
 import torch
+from sklearn.preprocessing import LabelEncoder
 from scvi.dataset import GeneExpressionDataset
 
 logger = logging.getLogger(__name__)
 
+
+# ==============================================================================
+# 1. Custom Mock Adapters (Added for direct Scanpy integration)
+# ==============================================================================
+
+class MockGeneDataset:
+    """
+    Extracts flat array features directly from a scanpy AnnData object
+    to mock the legacy internal metadata schema required by scVIC.
+    """
+    def __init__(self, adata: sc.AnnData, labels_obs_key: str, batch_obs_key: str):
+        # Safely capture sparse or dense count matrices
+        if sp_sparse.issparse(adata.X):
+            self.X = adata.X.toarray().astype(np.float32)
+        else:
+            self.X = adata.X.astype(np.float32)
+            
+        # Standardize categorical cells and groups to flat tracking integers
+        le_labels = LabelEncoder()
+        self.labels = le_labels.fit_transform(adata.obs[labels_obs_key]).reshape(-1, 1)
+        self.n_labels = len(le_labels.classes_)
+        self.cell_types = np.array(le_labels.classes_, dtype=str)
+        
+        le_batch = LabelEncoder()
+        self.batch_indices = le_batch.fit_transform(adata.obs[batch_obs_key]).reshape(-1, 1)
+        self.n_batches = len(le_batch.classes_)
+        
+        # Core dimensionality vectors
+        self.nb_genes = self.X.shape[1]
+        self.gene_names = np.array(adata.var_names, dtype=str)
+        
+        # Extract mean and variance statistics matching standard scvi-tools baseline logs
+        self.local_means = np.mean(self.X, axis=1, keepdims=True)
+        self.local_vars = np.var(self.X, axis=1, keepdims=True)
+        self.norm_X = self.X / (self.local_means + 1e-8)
+        self.corrupted_X = self.X.copy()
+        
+        # Explicitly initialize placeholders to satisfy load_dataset_from_scVI downstream transfers
+        self.protected_attributes = []
+        self.dataset_versions = {}
+        self.gene_attribute_names = []
+        self.cell_attribute_names = []
+        self.cell_categorical_attribute_names = []
+        self.attribute_mappings = {}
+        self.cell_measurements_col_mappings = {}
+
+
+class MockExpressionDataset:
+    """
+    Acts as a lightweight container proxy wrapping a MockGeneDataset instance.
+    Implements standard iteration generation logic to feed mini-batches into PyTorch.
+    """
+    def __init__(self, gene_dataset: MockGeneDataset):
+        self.gene_dataset = gene_dataset
+        self.X = gene_dataset.X
+        self.labels = gene_dataset.labels
+        self.batch_indices = gene_dataset.batch_indices
+        self.n_labels = gene_dataset.n_labels
+        self.n_batches = gene_dataset.n_batches
+        self.nb_genes = gene_dataset.nb_genes
+        self.gene_names = gene_dataset.gene_names
+        self.cell_types = gene_dataset.cell_types
+        self.local_means = gene_dataset.local_means
+        self.local_vars = gene_dataset.local_vars
+        self.norm_X = gene_dataset.norm_X
+        self.corrupted_X = gene_dataset.corrupted_X
+        self.protected_attributes = gene_dataset.protected_attributes
+        self.dataset_versions = gene_dataset.dataset_versions
+        self.gene_attribute_names = gene_dataset.gene_attribute_names
+        self.cell_attribute_names = gene_dataset.cell_attribute_names
+        self.cell_categorical_attribute_names = gene_dataset.cell_categorical_attribute_names
+        self.attribute_mappings = gene_dataset.attribute_mappings
+        self.cell_measurements_col_mappings = gene_dataset.cell_measurements_col_mappings
+        
+        # Self index parameters for epoch monitoring subsets
+        self.indices = np.arange(self.X.shape[0])
+        self.nb_cells = len(self.indices)
+
+    def __len__(self) -> int:
+        return self.X.shape[0]
+        
+    def __iter__(self):
+        # Generator slicing yielding exact tensors expected inside CTrainer/CPosterior loops
+        # Yields: sample_batch, local_l_mean, local_l_var, batch_index, labels
+        batch_size = 1024
+        for idx in range(0, len(self), batch_size):
+            yield (
+                torch.tensor(self.X[idx:idx+batch_size]),
+                torch.tensor(self.local_means[idx:idx+batch_size]),
+                torch.tensor(self.local_vars[idx:idx+batch_size]),
+                torch.tensor(self.batch_indices[idx:idx+batch_size], dtype=torch.int64),
+                torch.tensor(self.labels[idx:idx+batch_size], dtype=torch.int64)
+            )
+
+    def sequential(self, batch_size: int = 1024) -> "MockExpressionDataset":
+        return self
+
+
+# ==============================================================================
+# 2. Existing ExpressionDataset Base Architecture (Maintained)
+# ==============================================================================
 
 class ExpressionDataset(GeneExpressionDataset):
 
@@ -21,7 +123,7 @@ class ExpressionDataset(GeneExpressionDataset):
         self._X_dropout_removal = None
         self.cell_measurements_col_mappings = dict()
 
-    def load_dataset_from_scVI(self, dataset: GeneExpressionDataset):
+    def load_dataset_from_scVI(self, dataset: Union[GeneExpressionDataset, MockGeneDataset]):
         # registers
         self.dataset_versions = dataset.dataset_versions
         self.gene_attribute_names = dataset.gene_attribute_names
@@ -43,7 +145,6 @@ class ExpressionDataset(GeneExpressionDataset):
         self._norm_X = dataset.norm_X
         self._corrupted_X = dataset.corrupted_X
 
-        # attributes that should not be set by initialization methods
         self.protected_attributes = dataset.protected_attributes
 
         for attr_name in self.cell_attribute_names:
@@ -56,7 +157,6 @@ class ExpressionDataset(GeneExpressionDataset):
 
     @property
     def X_dropout_removal(self) -> Union[sp_sparse.csr_matrix, np.ndarray]:
-        """Returns the corrupted version of X."""
         return self._X_dropout_removal
 
     @X_dropout_removal.setter
@@ -82,7 +182,6 @@ class ExpressionDataset(GeneExpressionDataset):
             index=np.arange(self.nb_cells).astype(str)
         ).astype("category")
 
-        # Ensure values are strictly rounded counts to safely pass seurat_v3 requirements
         counts = self.X.copy()
         if sp_sparse.issparse(counts):
             counts.data = np.round(counts.data)
@@ -92,7 +191,6 @@ class ExpressionDataset(GeneExpressionDataset):
         adata = sc.AnnData(X=counts, obs=obs)
         batch_key = "batch" if (batch_correction and self.n_batches >= 2) else None
         
-        # Replacement for deprecated normalize_per_cell
         sc.pp.normalize_total(adata, target_sum=None)
         sc.pp.log1p(adata)
         
@@ -108,7 +206,6 @@ class ExpressionDataset(GeneExpressionDataset):
          )
          
         genes_infos = adata.var
-        # Fixed np.int deprecation bug by changing to native int
         subset_genes = np.array(genes_infos["highly_variable"].index, dtype=int)
         self.update_genes(subset_genes)
 
@@ -119,7 +216,6 @@ class ExpressionDataset(GeneExpressionDataset):
             corrupted: bool = False,
             dropout_removal: bool = False,
     ) -> Callable[[Union[List[int], np.ndarray]], Tuple[torch.Tensor, ...]]:
-        """Returns a collate_fn with the requested shape/attributes"""
 
         if override:
             attributes_and_types = dict()
