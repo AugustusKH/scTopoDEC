@@ -1,7 +1,6 @@
-from scvi.inference import UnsupervisedTrainer
-from scvic.inference.clustering_inference import CTrainer
+from scvic.inference.clustering_inference import CPosterior, CTrainer
 
 __all__ = [
-    "UnsupervisedTrainer",
+    "CPosterior",
     "CTrainer"
 ]
