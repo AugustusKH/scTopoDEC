@@ -4,7 +4,17 @@ from typing import Iterable, List, Optional, Tuple, Union
 import torch
 from torch import nn as nn
 from torch.distributions import Normal
-from scvi.models.utils import one_hot
+
+
+
+# ==============================================================================
+# Native Replacement for Legacy scvi.models.utils.one_hot
+# ==============================================================================
+def one_hot(index: torch.Tensor, n_cats: int) -> torch.Tensor:
+    """Converts a class index tensor into a standard one-hot tensor."""
+    onehot = torch.zeros(index.size(0), n_cats, device=index.device)
+    onehot.scatter_(1, index.view(-1, 1).long(), 1)
+    return onehot
 
 
 def reparameterize_gaussian(mu: torch.Tensor, var: torch.Tensor) -> torch.Tensor:
