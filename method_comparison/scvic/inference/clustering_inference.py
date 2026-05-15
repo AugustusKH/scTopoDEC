@@ -190,7 +190,12 @@ class CTrainer:
                     sample_batch, local_l_mean, local_l_var, batch_index
                 )
                 
+                # Convert kl_global to a tensor if it's passed as a raw float
+                if not isinstance(kl_global, torch.Tensor):
+                    kl_global = torch.tensor(kl_global, device=self.device)
+
                 loss = torch.mean(reconst_loss + self.kl_weight * kl_local) + torch.sum(kl_global)
+
                 if self.normalize_loss:
                     loss = loss / self.n_samples
                     
