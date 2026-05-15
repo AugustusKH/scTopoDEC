@@ -74,7 +74,7 @@ def objective(trial, adata, args):
 
     # Clustering Params
     alpha = trial.suggest_float("alpha", 1.0, 5.0)
-    n_clusters = trial.suggest_categorical("n_clusters", [10, 15, 20, 30])
+    n_clusters = trial.suggest_categorical("n_clusters", [0, 10, 15, 20, 30])
     weight_choices = [
         (1.0, 1.0, 0.0, 0.1), (1.0, 1.0, 0.0, 0.5), (1.0, 1.0, 0.0, 1.0),
         (1.0, 1.0, 0.0, 2.0), (1.0, 0.5, 0.0, 1.0), (1.0, 1.0, 0.1, 0.5),
@@ -88,7 +88,7 @@ def objective(trial, adata, args):
     max_edge = trial.suggest_float("max_edge", 0.5, 2.0)
     topo_size = trial.suggest_categorical("topo_size", [45, 64, 128])
     order = trial.suggest_float("order", 0.5, 2.0)
-    topo_in_mode = trial.suggest_categorical("topo_in_mode", ['umap', 'pca_dist', 'knn', 'eff_res'])
+    topo_in_mode = trial.suggest_categorical("topo_in_mode", ['tsne', 'umap', 'pca_dist', 'knn', 'eff_res'])
     topo_lat_mode = trial.suggest_categorical("topo_lat_mode", ['euclid_dist', 'eff_res'])
     k = trial.suggest_categorical("k", [15, 30, 50, 100])
 

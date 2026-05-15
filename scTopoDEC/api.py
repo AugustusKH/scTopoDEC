@@ -267,8 +267,8 @@ def scTopoDEC(adata,                        # single-cell args
             Wasserstein exponent q (1 <= q < infinity).
         topo_input_mode : `string`, optional (default: 'eff_res')
             The method used to generate the ground-truth topological representation from the 
-            input data. Options include coordinate-based point clouds ('pca', 'umap', 'raw') or 
-            pre-computed distance matrices ('pca_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
+            input data. Options include coordinate-based point clouds ('pca', 'tsne', 'umap', 'raw') or 
+            pre-computed distance matrices ('pca_dist', 'tsne_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
         topo_latent_mode : `string`, optional (default: 'eff_res')
             The method used to represent the latent space Z for topological comparison. 
             Use 'raw' for coordinate-based comparison, 'inner_product' for matrix multiplication between Z and 
