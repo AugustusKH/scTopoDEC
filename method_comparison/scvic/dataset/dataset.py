@@ -8,13 +8,12 @@ import scanpy as sc
 import scipy.sparse as sp_sparse
 import torch
 from sklearn.preprocessing import LabelEncoder
-from scvi.dataset import GeneExpressionDataset
 
 logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
-# 1. Custom Mock Adapters (Added for direct Scanpy integration)
+# 1. Custom Mock Adapters (Direct Scanpy integration - Standalone)
 # ==============================================================================
 
 class MockGeneDataset:
@@ -111,19 +110,18 @@ class MockExpressionDataset:
 
 
 # ==============================================================================
-# 2. Existing ExpressionDataset Base Architecture (Maintained)
+# 2. Existing ExpressionDataset Base Architecture (Modernized & Standalone)
 # ==============================================================================
 
-class ExpressionDataset(GeneExpressionDataset):
+class ExpressionDataset(MockExpressionDataset): # Fixed inheritance to use Mock system
 
     def __init__(self, new_n_genes=None, batch_correction=False):
-        super().__init__()
         self.new_n_genes = new_n_genes
         self.batch_correction = batch_correction
         self._X_dropout_removal = None
         self.cell_measurements_col_mappings = dict()
 
-    def load_dataset_from_scVI(self, dataset: Union[GeneExpressionDataset, MockGeneDataset]):
+    def load_dataset_from_scVI(self, dataset: Union[MockExpressionDataset, MockGeneDataset]):
         # registers
         self.dataset_versions = dataset.dataset_versions
         self.gene_attribute_names = dataset.gene_attribute_names
@@ -162,7 +160,6 @@ class ExpressionDataset(GeneExpressionDataset):
     @X_dropout_removal.setter
     def X_dropout_removal(self, X_dropout_removal: Union[sp_sparse.csr_matrix, np.ndarray]):
         self._X_dropout_removal = X_dropout_removal
-        self.register_dataset_version("X_dropout_removal")
 
     def keep_highly_variable_genes_by_seurat(
             self,
@@ -174,9 +171,6 @@ class ExpressionDataset(GeneExpressionDataset):
         if batch_correction is None:
             batch_correction = self.batch_correction
             
-        self.filter_genes_by_count(min_count=1)
-        self.filter_cells_by_count(min_count=1)
-        
         obs = pd.DataFrame(
             data=dict(batch=self.batch_indices.squeeze()),
             index=np.arange(self.nb_cells).astype(str)
@@ -207,7 +201,10 @@ class ExpressionDataset(GeneExpressionDataset):
          
         genes_infos = adata.var
         subset_genes = np.array(genes_infos["highly_variable"].index, dtype=int)
-        self.update_genes(subset_genes)
+        # Manually filter arrays instead of using deprecated base functions
+        self.X = self.X[:, subset_genes]
+        self.gene_names = self.gene_names[subset_genes]
+        self.nb_genes = self.X.shape[1]
 
     def collate_fn_builder(
             self,
