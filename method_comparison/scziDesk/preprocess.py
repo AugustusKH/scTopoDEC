@@ -94,9 +94,11 @@ def normalize(adata, copy=True, highly_genes=None, filter_min_counts=True, size_
     if size_factors:
         # Calculate raw counts per cell manually to replace old normalize_per_cell side-effects
         if sp_sparse.issparse(adata.X):
-            adata.obs['n_counts'] = np.array(adata.X.sum(axis=1)).A1
+            # A1 replaced by converting the matrix sum matrix cleanly to an array, then flattening
+            adata.obs['n_counts'] = np.asarray(adata.X.sum(axis=1)).ravel()
         else:
-            adata.obs['n_counts'] = np.array(adata.X.sum(axis=1))
+            # Ensures that even if the dense sum has an extra dimension, it flattens into a 1D vector
+            adata.obs['n_counts'] = np.asarray(adata.X.sum(axis=1)).ravel()
             
         # Standardize library depth total scaling
         sc.pp.normalize_total(adata, target_sum=None)
