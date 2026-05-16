@@ -10,6 +10,29 @@ from loss import NB, ZINB, cal_latent, target_dis, cal_dist, DispAct, MeanAct
 logger = logging.getLogger(__name__)
 
 
+# ==============================================================================
+# Custom Unbounded Gaussian Noise Layer (Bypasses Modern Keras Constraints)
+# ==============================================================================
+class UnboundedGaussianNoise(tf.keras.layers.Layer):
+    """
+    Applies additive Gaussian noise to the inputs during training mode.
+    Bypasses modern Keras restriction that caps standard deviation scaling.
+    """
+    def __init__(self, stddev, name=None, **kwargs):
+        super(UnboundedGaussianNoise, self).__init__(name=name, **kwargs)
+        self.stddev = stddev
+
+    def call(self, inputs, training=False):
+        if training:
+            # Inject native normal distribution noise matched to the target shape
+            noise = tf.random.normal(shape=tf.shape(inputs), mean=0.0, stddev=self.stddev, dtype=inputs.dtype)
+            return inputs + noise
+        return inputs
+
+
+# ==============================================================================
+# Modernized TF2 scziDesk Autoencoder Class
+# ==============================================================================
 class ScziDeskAutoencoder(tf.keras.Model):
     """
     Unified TensorFlow 2.x Deep Embedding Clustering network for scziDesk benchmarks.
@@ -42,8 +65,8 @@ class ScziDeskAutoencoder(tf.keras.Model):
             dtype=tf.float32
         )
 
-        # 1. Structural Encoder Block Architecture
-        self.encoder_noise_in = tf.keras.layers.GaussianNoise(self.noise_sd, name='input_noise')
+        # 1. Structural Encoder Block Architecture (FIXED: Using Custom Unbounded Noise)
+        self.encoder_noise_in = UnboundedGaussianNoise(self.noise_sd, name='input_noise')
         self.encoder_layers = []
         self.encoder_noise_layers = []
         self.encoder_acts = []
@@ -52,8 +75,9 @@ class ScziDeskAutoencoder(tf.keras.Model):
             self.encoder_layers.append(
                 tf.keras.layers.Dense(units=self.dims[i + 1], kernel_initializer=self.init, name=f'encoder_{i}')
             )
+            # FIXED: Swapped out legacy layer to prevent value range crashes
             self.encoder_noise_layers.append(
-                tf.keras.layers.GaussianNoise(self.noise_sd, name=f'noise_{i}')
+                UnboundedGaussianNoise(self.noise_sd, name=f'noise_{i}')
             )
             self.encoder_acts.append(
                 tf.keras.layers.Activation(self.act)
