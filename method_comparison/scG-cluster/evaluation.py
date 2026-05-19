@@ -1,4 +1,4 @@
-import np
+import numpy as np
 from scipy.optimize import linear_sum_assignment
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, silhouette_score
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
