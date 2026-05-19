@@ -4,13 +4,13 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.losses import cosine_similarity
 
 def _nan2zero(x):
-    return tf.where(tf.is_nan(x), tf.zeros_like(x), x)
+    return tf.where(tf.math.is_nan(x), tf.zeros_like(x), x)
 
 def _nan2inf(x):
-    return tf.where(tf.is_nan(x), tf.zeros_like(x)+np.inf, x)
+    return tf.where(tf.math.is_nan(x), tf.zeros_like(x) + np.inf, x)
 
 def _nelem(x):
-    nelem = tf.reduce_sum(tf.cast(~tf.is_nan(x), tf.float32))
+    nelem = tf.reduce_sum(tf.cast(~tf.math.is_nan(x), tf.float32))
     return tf.cast(tf.where(tf.equal(nelem, 0.), 1., nelem), x.dtype)
 
 
