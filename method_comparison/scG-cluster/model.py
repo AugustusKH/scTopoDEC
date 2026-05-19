@@ -120,9 +120,9 @@ class scG(tf.keras.Model):
                 best_loss = loss
                 patience_count = 0
                 try:
-                    self.encoder.save_weights(self.model_pth + "pretrain_encoder.h5")
-                    self.decoderA.save_weights(self.model_pth + "pretrain_decoderA.h5")
-                    self.decoderX.save_weights(self.model_pth + "pretrain_decoderX.h5")
+                    self.encoder.save_weights(self.model_pth + "pretrain_encoder.weights.h5")
+                    self.decoderA.save_weights(self.model_pth + "pretrain_decoderA.weights.h5")
+                    self.decoderX.save_weights(self.model_pth + "pretrain_decoderX.weights.h5")
                     print("Weights saved successfully.")
                 except Exception as e:
                     print(f"Error saving weights: {e}")
@@ -230,9 +230,9 @@ class scG(tf.keras.Model):
                 best_loss = stop_loss
                 loss_count = 0
                 try:
-                    self.encoder.save_weights(self.model_pth + "train_encoder.h5")
-                    self.decoderA.save_weights(self.model_pth + "train_decoderA.h5")
-                    self.decoderX.save_weights(self.model_pth + "train_decoderX.h5")
+                    self.encoder.save_weights(self.model_pth + "train_encoder.weights.h5")
+                    self.decoderA.save_weights(self.model_pth + "train_decoderA.weights.h5")
+                    self.decoderX.save_weights(self.model_pth + "train_decoderX.weights.h5")
                     print("Weights1 saved successfully.")
                 except Exception as e:
                     print(f"Error saving weights: {e}")
@@ -242,9 +242,9 @@ class scG(tf.keras.Model):
             if delta_y < 0.001 or loss_count == 10:
                 if delta_y < 0.001:
                     try:
-                        self.encoder.save_weights(self.model_pth + "train_encoder.h5")
-                        self.decoderA.save_weights(self.model_pth + "train_decoderA.h5")
-                        self.decoderX.save_weights(self.model_pth + "train_decoderX.h5")
+                        self.encoder.save_weights(self.model_pth + "train_encoder.weights.h5")
+                        self.decoderA.save_weights(self.model_pth + "train_decoderA.weights.h5")
+                        self.decoderX.save_weights(self.model_pth + "train_decoderX.weights.h5")
                         print("Weights2 saved successfully.")
                     except Exception as e:
                         print(f"Error saving weights: {e}")
@@ -275,12 +275,12 @@ class scG(tf.keras.Model):
     def load_model(self, mode="pretrain"):
         if mode == "pretrain":
             # save weights
-            self.encoder.load_weights(self.model_pth + "pretrain_encoder.h5")
-            self.decoderA.load_weights(self.model_pth + "pretrain_decoderA.h5")
-            self.decoderX.load_weights(self.model_pth + "pretrain_decoderX.h5")
+            self.encoder.load_weights(self.model_pth + "pretrain_encoder.weights.h5")
+            self.decoderA.load_weights(self.model_pth + "pretrain_decoderA.weights.h5")
+            self.decoderX.load_weights(self.model_pth + "pretrain_decoderX.weights.h5")
         elif mode == "train":
-            self.encoder.load_weights(self.model_pth + "train_encoder.h5")
-            self.decoderA.load_weights(self.model_pth + "train_decoderA.h5")
-            self.decoderX.load_weights(self.model_pth + "train_decoderX.h5")
+            self.encoder.load_weights(self.model_pth + "train_encoder.weights.h5")
+            self.decoderA.load_weights(self.model_pth + "train_decoderA.weights.h5")
+            self.decoderX.load_weights(self.model_pth + "train_decoderX.weights.h5")
 
 
