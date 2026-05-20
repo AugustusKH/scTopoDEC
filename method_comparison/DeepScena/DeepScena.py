@@ -86,7 +86,7 @@ class DeepScena(nn.Module):
  
         # FIXED: Removed redundant duplicate save/load block
         torch.save(self.AE, f'AE_{self.dataset_name}_pretrain.pth')
-        self.AE = torch.load(f'AE_{self.dataset_name}_pretrain.pth')
+        self.AE = torch.load(f'AE_{self.dataset_name}_pretrain.pth', weights_only=False)
         return self.AE
 
     def initialization(self): 
@@ -234,8 +234,8 @@ class DeepScena(nn.Module):
         pd.DataFrame(NMIlist).to_csv("NMI1.csv")
 
     def second_module(self):
-        self.AE = torch.load(f'AE_First_module_{self.dataset_name}.pth')
-        self.u_mean = torch.load(f'Centers_{self.dataset_name}.pth').to(self.device)
+        self.AE = torch.load(f'AE_First_module_{self.dataset_name}.pth', weights_only=False)
+        self.u_mean = torch.load(f'Centers_{self.dataset_name}.pth', weights_only=False).to(self.device)
 
         AE_optimizer = optim.Adam(self.AE.parameters(), lr=0.000001)
         MNet_optimizer = optim.Adam(self.MNet.parameters())
