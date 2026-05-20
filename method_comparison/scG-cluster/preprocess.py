@@ -91,6 +91,11 @@ if __name__ == "__main__":
         # Normalization, selection of highly variable genes
         adata = normalize(adata, highly_genes=args.highly_genes)
 
+    # Save the perfectly filtered adata object for downstream UMAPs
+    adata_save_path = save_path.replace('.h5', '.h5ad')
+    adata.write_h5ad(adata_save_path)
+    print(f"Saved filtered Scanpy object to: {adata_save_path}")
+
     # Save the normalized data to a new .h5 file
     with h5py.File(save_path, 'w') as f_normalized:
         X_out = adata.X.toarray() if issparse(adata.X) else adata.X
