@@ -31,7 +31,8 @@ class MaskingLayer(keras.layers.Layer):
         if not training:
             return inputs
         # Mask random entries by setting them to zero
-        mask = ops.cast(ops.random.uniform(ops.shape(inputs)) > self.mask_rate, "float32")
+        random_tensor = keras.random.uniform(shape=ops.shape(inputs))
+        mask = ops.cast(random_tensor > self.mask_rate, "float32")
         return inputs * mask
 
 
