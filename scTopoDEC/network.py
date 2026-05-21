@@ -62,7 +62,10 @@ class Autoencoder():
         self.sf_layer = layers.Input(shape=(1,), name='size_factors')
 
         # Apply masking
-        x = MaskingLayer(mask_rate=self.mask_rate)(self.input_layer)
+        if self.mask_rate > 0.0:
+            x = MaskingLayer(mask_rate=self.mask_rate)(self.input_layer)
+        else:
+            x = self.input_layer
 
         if n_batch > 0:
             self.batch_layer = layers.Input(shape=(n_batch,), name='batch')
