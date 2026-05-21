@@ -51,6 +51,7 @@ def scTopoDEC(adata,                        # single-cell args
         loss_weights=(1, 0.1, 0, 1),
         noise_sd=0.,
         hidden_dropout=0.,
+        mask_rate=0.0,
         batchnorm=True,
         activation='relu',
         init='glorot_uniform',
@@ -166,6 +167,16 @@ def scTopoDEC(adata,                        # single-cell args
             Number of neurons in hidden layers (symmetric for encoder/decoder).
         hidden_dropout : `float`, optional (default: 0.0)
             Dropout rate applied to hidden layers.
+        mask_rate : `float`, optional (default: 0.0)
+            The fraction of gene expression features to randomly mask (set to 0) 
+            during the initial autoencoder pretraining phase. 
+            - Set to 0.0 to disable masking and run standard pretraining.
+            - Set between 0.1 and 0.4 (e.g., 0.2 for 20% masking) to enable 
+              Self-Supervised Masked Gene Modeling (MGM). 
+            - This forces the network to learn complex gene co-expression relationships 
+              by predicting missing values from unmasked features, heavily mitigating 
+              the effects of technical dropout. Masking is automatically disabled 
+              during the clustering and evaluation phases.
         batchnorm : `bool`, optional (default: True)
             If True, applies Batch Normalization after each dense layer.
         activation : `str`, optional (default: 'relu')
@@ -398,6 +409,7 @@ def scTopoDEC(adata,                        # single-cell args
         'hidden_size': hidden_size,
         'hidden_dropout': hidden_dropout,
         'noise_sd': noise_sd,
+        'mask_rate': mask_rate,
         'batchnorm': batchnorm,
         'activation': activation,
         'init': init,

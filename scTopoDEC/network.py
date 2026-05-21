@@ -11,7 +11,7 @@ import keras
 from keras import ops, layers, models, regularizers, initializers
 
 from .loss import NB, ZINB
-from .layers import SliceLayer, ClusteringLayer, ColwiseMultLayer, ZINBComputationLayer
+from .layers import MaskingLayer, SliceLayer, ClusteringLayer, ColwiseMultLayer, ZINBComputationLayer
 from .io import write_text_matrix
 
 
@@ -25,7 +25,7 @@ advanced_activations = ('PReLU', 'LeakyReLU')
 class Autoencoder():
     def __init__(self, input_size, output_size=None, hidden_size=(256, 64, 32, 64, 256),
                  noise_sd=0., l2_coef=0., l1_coef=0., l2_enc_coef=0., l1_enc_coef=0.,
-                 ridge=0., hidden_dropout=0., input_dropout=0.,
+                 ridge=0., hidden_dropout=0., input_dropout=0., mask_rate=0.0,
                  batchnorm=True, activation='relu', init='glorot_uniform',
                  file_path=None, debug=False, **kwargs):
 
@@ -40,6 +40,7 @@ class Autoencoder():
         self.ridge = ridge
         self.hidden_dropout = hidden_dropout
         self.input_dropout = input_dropout
+        self.mask_rate = mask_rate
         self.batchnorm = batchnorm
         self.activation = activation
         self.init = init
@@ -59,6 +60,9 @@ class Autoencoder():
     def build(self, n_batch=0):
         self.input_layer = layers.Input(shape=(self.input_size,), name='count', sparse=True)
         self.sf_layer = layers.Input(shape=(1,), name='size_factors')
+
+        # Apply masking
+        self.input_layer = MaskingLayer(mask_rate=self.mask_rate)(self.input_layer)
 
         if n_batch > 0:
             self.batch_layer = layers.Input(shape=(n_batch,), name='batch')

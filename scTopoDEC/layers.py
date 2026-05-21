@@ -6,6 +6,35 @@ import gudhi as gd
 from gudhi import RipsComplex
 
 
+class MaskingLayer(keras.layers.Layer):
+    """
+    A stochastic masking layer designed for self-supervised pretraining (Masked Gene Modeling).
+    
+    This layer randomly masks a percentage of input features by setting them to zero 
+    during training. It is used to force the autoencoder to learn robust feature 
+    dependencies and recover masked information, effectively modeling the dropout 
+    characteristics inherent in scRNA-seq data.
+
+    # Arguments
+        mask_rate: Float between 0 and 1. The fraction of input features to mask (set to 0) 
+                   during each training pass. 
+
+    # Note
+        Masking is only applied when `training=True`. During inference (evaluation or 
+        clustering), the layer acts as an identity function, passing inputs through 
+    """
+    def __init__(self, mask_rate=0.2, **kwargs):
+        super().__init__(**kwargs)
+        self.mask_rate = mask_rate
+
+    def call(self, inputs, training=None):
+        if not training:
+            return inputs
+        # Mask random entries by setting them to zero
+        mask = ops.cast(ops.random.uniform(ops.shape(inputs)) > self.mask_rate, "float32")
+        return inputs * mask
+
+
 class SliceLayer(keras.layers.Layer):
     """
     Slices a specific tensor from a list of input tensors.
