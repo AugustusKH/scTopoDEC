@@ -62,13 +62,13 @@ class Autoencoder():
         self.sf_layer = layers.Input(shape=(1,), name='size_factors')
 
         # Apply masking
-        self.input_layer = MaskingLayer(mask_rate=self.mask_rate)(self.input_layer)
+        x = MaskingLayer(mask_rate=self.mask_rate)(self.input_layer)
 
         if n_batch > 0:
             self.batch_layer = layers.Input(shape=(n_batch,), name='batch')
-            last_hidden = layers.Concatenate()([self.input_layer, self.batch_layer])
+            last_hidden = layers.Concatenate()([x, self.batch_layer])
         else:
-            last_hidden = self.input_layer
+            last_hidden = x
 
         if self.noise_sd > 0.0:
             last_hidden = layers.GaussianNoise(self.noise_sd, name='input_noise')(last_hidden)
