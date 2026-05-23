@@ -382,7 +382,7 @@ class DEC(ZINBAutoencoder):
         return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
     
 
-    def get_initial_clusters(self, adata, n_neighbors=20, resolution=0.8):
+    def get_initial_clusters(self, adata, n_neighbors=15, resolution=1.):
         """Detects initial clusters in latent space using Leiden."""
         # 1. Get latent representation
         inputs = {
