@@ -217,6 +217,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
         print("\n...n_clusters is 0: Automatically detecting clusters via Leiden...")
         initial_centroids, y_pred = network.get_initial_clusters(adata, n_neighbors=n_neighbors, resolution=resolution)
         n_detected = len(initial_centroids)
+        print(f"Predicted number of clusters: {n_detected}")
         network.init_clustering_layer(n_clusters=n_detected, weights=initial_centroids)
         model = network.model
         kmeans = KMeans(n_clusters=n_detected, n_init=20, random_state=random_state)
@@ -461,6 +462,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         print("\n...n_clusters is 0: Automatically detecting clusters via Leiden...")
         initial_centroids, y_pred = network.get_initial_clusters(adata, n_neighbors=n_neighbors, resolution=resolution)
         n_detected = len(initial_centroids)
+        print(f"Predicted number of clusters: {n_detected}")
         network.init_clustering_layer(n_clusters=n_detected, weights=initial_centroids)
         kmeans = KMeans(n_clusters=n_detected, n_init=20, random_state=random_state)
         latent_feat = network.encoder.predict({'count': adata.X, 
