@@ -355,7 +355,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
             callback_list.on_batch_end(i // batch_size, logs={'loss': float(loss_vals[0])})
             
             # Check if NaN was detected and stop_training was set
-            if model.stop_training:
+            if getattr(model, 'stop_training', False):
                 print(f"NaN detected at Epoch {epoch}, Batch {i}. Pruning trial.")
                 return y_pred # Objective will check model weights for NaN later
             # ----------------------------------------------
@@ -605,7 +605,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
                 # --- Trigger Batch End Callbacks ---
                 callback_list.on_batch_end(i // batch_size, logs={'loss': float(loss_vals[0])})
                 
-                if model.stop_training:
+                if getattr(model, 'stop_training', False):
                     print(f"NaN detected during Res {current_res}. Pruning trial.")
                     return y_pred
                 # ----------------------------------------------
