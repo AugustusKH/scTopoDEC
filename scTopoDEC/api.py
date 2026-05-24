@@ -38,19 +38,19 @@ tf.keras.backend.clear_session()
 def scTopoDEC(adata,                        # single-cell args
         ae_type='dec',
         mode='clustering',
-        n_clusters='10',
+        n_clusters=0,
         n_neighbors=15, 
-        resolution=1.,
+        resolution=0.5,
         use_hvg=True,         
         n_top_genes=2000,      
-        alpha=1.,
+        alpha=2.,
         normalize_per_cell=True,
         scale=True,
         log1p=True,
-        hidden_size=(256, 64, 32, 64, 256), # network args
-        loss_weights=(1, 0.1, 0, 1),
-        noise_sd=0.,
-        hidden_dropout=0.,
+        hidden_size=(256, 128, 64, 32, 64, 128, 256), # network args
+        loss_weights=(1.0, 1.0, 0.1, 1.0),
+        noise_sd=0.2,
+        hidden_dropout=0.05,
         mask_rate=0.0,
         batchnorm=True,
         activation='relu',
@@ -58,23 +58,23 @@ def scTopoDEC(adata,                        # single-cell args
         network_kwds={},
         epochs=300,                         # Train args
         optimizer='adam',
-        learning_rate=0.01,
-        update_interval=10,
+        learning_rate=0.0001,
+        update_interval=5,
         tol=1e-3,
         ground_truth=None,
         batch_key=None,
         res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0),
         ramp_mode=False,
-        cluster_early_stop=True,
-        soft_kmean=False,
+        cluster_early_stop=False,
+        soft_kmean=True,
         training_kwds={},
-        pretrain_epochs=200,                # Pretrain args    
+        pretrain_epochs=500,                # Pretrain args    
         pretrain_optimizer='adam',
         pretrain_learning_rate=0.01,  
         pretraining_kwds={},         
         reduce_lr=20,                       # Both pretrain and train args
         early_stop=30,
-        batch_size=128,
+        batch_size=256,
         random_state=0,
         threads=None,
         verbose=False,
@@ -83,14 +83,14 @@ def scTopoDEC(adata,                        # single-cell args
         copy=False,
         check_counts=True,
         homology_dim=1,                     # Topology args
-        maximum_edge_length=1.5,
-        topo_size=64,
+        maximum_edge_length=1.,
+        topo_size=256,
         pg_dist='wd',
         order=1.,
         topo_input_mode='eff_res',
-        topo_latent_mode='eff_res',
-        n_components=30, 
-        k=30, 
+        topo_latent_mode='euclid_dist',
+        n_components=50, 
+        k=100, 
         t=8,
         train_output_dir=None,              # Model weight save/load args 
         pretrain_output_dir=None,       
@@ -127,15 +127,15 @@ def scTopoDEC(adata,                        # single-cell args
             - 'clustering': Adds cluster assignments to `adata.obs['dec_cluster']` and 
             probabilities to `adata.obsm['X_dec_probs']`.
             - 'full': Executes all modes and updates all relevant fields.
-        n_clusters : int or str, optional (default: 10)
+        n_clusters : int or str, optional (default: 0)
             The number of clusters to find during the DEC phase. This determines the number 
             of centroids initialized by K-Means and the output dimensions of the clustering 
             layer. If n_cluster = 0, then the model will detect the number of clusters 
             automatically using the Leiden algorithm.
-        n_neighbors : int, optional (default: 20) 
+        n_neighbors : int, optional (default: 15) 
             The number of nearest neighbors used to calculate the Leiden algorithm for automatic
             detection of the number of clusters.  
-        resolution : float, optional (default: 0.8)
+        resolution : float, optional (default: 0.5)
             The resolution parameter for the Leiden algorithm for automatic detection of 
             the number of clusters.
         use_hvg : bool, optional (default: True)
@@ -146,13 +146,13 @@ def scTopoDEC(adata,                        # single-cell args
         n_top_genes : int, optional (default: 2000)
             The number of top variable genes to keep if use_hvg is True. For datasets with 
             ~30,000 genes, 2,000 is the recommended benchmark for optimal clustering performance.
-        loss_weights : `list`, optional (default: (1, 0.1, 0, 1))
+        loss_weights : `list`, optional (default: (1.0, 1.0, 0.1, 1.0))
             Weights for the joint loss function:
             - index 0: Reconstruction loss (ZINB/MSE).
             - index 1: Clustering loss (KLD).
             - index 2: Soft k-mean clustering loss.
             - index 3: Topological loss (persistent Homology).
-        alpha : `float`, optional (default: 1.0)
+        alpha : `float`, optional (default: 2.0)
             Degrees of freedom for Student’s t-distribution in the clustering layer. 
             Must be positive to calculate soft assignments (q).
         normalize_per_cell : `bool`, optional (default: True)
@@ -165,7 +165,9 @@ def scTopoDEC(adata,                        # single-cell args
             If True, the input is log-transformed (log(1+x)) for the encoder.
         hidden_size : `tuple` or `list`, optional (default: (256, 64, 32, 64, 256))
             Number of neurons in hidden layers (symmetric for encoder/decoder).
-        hidden_dropout : `float`, optional (default: 0.0)
+        noise_sd : `float`, optional (default: 0.2)
+            Random Gaussian noise adding to inputs and encoder layers
+        hidden_dropout : `float`, optional (default: 0.05)
             Dropout rate applied to hidden layers.
         mask_rate : `float`, optional (default: 0.0)
             The fraction of gene expression features to randomly mask (set to 0) 
@@ -189,9 +191,9 @@ def scTopoDEC(adata,                        # single-cell args
             Maximum number of training iterations.
         optimizer : `str`, optional (default: 'adam')
             Optimization algorithm (e.g., 'adam', 'RMSprop').
-        learning_rate : `float`, optional (default: 0.001)
+        learning_rate : `float`, optional (default: 0.0001)
             Initial learning rate for the optimizer.
-        update_interval : `int`, optional (default: 10)
+        update_interval : `int`, optional (default: 5)
             The frequency (in epochs) at which the target distribution 'p' is 
             recalculated. This acts as the "self-supervision" signal for DEC; 
             updating too frequently can cause instability, while too rarely 
@@ -222,27 +224,27 @@ def scTopoDEC(adata,                        # single-cell args
             enabled, the total `epochs` are divided across the stages defined 
             in `res_ramp`, and the learning rate is annealed at each stage to 
             ensure stable convergence.
-        cluster_early_stop : `bool`, optional (default: True)
+        cluster_early_stop : `bool`, optional (default: False)
             If True, enable patience for early stopping in clustering training step. 
-        soft_kmean : `bool`, optional (default: False)
+        soft_kmean : `bool`, optional (default: True)
             If True, use soft k-mean loss function, else use standard k-mean loss function.
         training_kwds : `dict`, optional
             Additional arguments passed to the training function, i.e. dec_train().
-        pretrain_epochs : `int`, optional (default: 200)
+        pretrain_epochs : `int`, optional (default: 500)
             Number of iterations for the initial autoencoder pretraining phase. 
             This ensures the weights are "warm" and the latent space is 
             structured before clustering begins.
         pretrain_optimizer : `str`, optional (default: 'adam')
             The optimization algorithm used specifically for the pretraining 
             phase (e.g., 'adam', 'sgd').
-        pretrain_learning_rate : `float`, optional (default: 0.01)
+        pretrain_learning_rate : `float`, optional (default: 0.001)
             The learning rate for the pretraining phase. This is typically higher 
             than the clustering learning rate to allow for rapid feature learning.
         reduce_lr : `int`, optional (default: 20)
             Patience for Reducing Learning Rate on plateau.
         early_stop : `int`, optional (default: 30)
             Patience for Early Stopping based on validation loss.
-        batch_size : `int`, optional (default: 128)
+        batch_size : `int`, optional (default: 256)
             Number of samples per gradient update.
         random_state : `int`, optional (default: 0)
             Seed for reproducibility (affects Python, NumPy, and TensorFlow).
@@ -265,10 +267,10 @@ def scTopoDEC(adata,                        # single-cell args
             - 0: Connected components (clusters).
             - 1: Cycles/loops (trajectories/branches).
             - 2: Voids/spheres (globular structures).
-        maximum_edge_length : `float`, optional (default: 1.5)
+        maximum_edge_length : `float`, optional (default: 1.)
             The filtration cutoff. Limits the distance at which points are connected. 
             Prevents OOM errors by ignoring very long-distance edges.
-        topo_size : `integer`, optional (default: 64)
+        topo_size : `integer`, optional (default: 256)
             The number of cells randomly sampled to estimate the density 
             scale, ensuring the loss is computationally efficient and scale-invariant.
         pg_dist : `string`, optional (default: 'wd') 
@@ -280,15 +282,15 @@ def scTopoDEC(adata,                        # single-cell args
             The method used to generate the ground-truth topological representation from the 
             input data. Options include coordinate-based point clouds ('pca', 'tsne', 'umap', 'raw') or 
             pre-computed distance matrices ('pca_dist', 'tsne_dist', 'umap_dist', 'knn', 'eff_res', 'diffusion').
-        topo_latent_mode : `string`, optional (default: 'eff_res')
+        topo_latent_mode : `string`, optional (default: 'euclid_dist')
             The method used to represent the latent space Z for topological comparison. 
             Use 'raw' for coordinate-based comparison, 'inner_product' for matrix multiplication between Z and 
             its transpose, or 'euclid_dist'/'knn'/'eff_res'/'diffusion' for distance-matrix-based comparison to 
             ensure the operations remain differentiable during training.
-        n_components : `int`, optional (default: 30)
+        n_components : `int`, optional (default: 50)
             The number of dimensions to retain when using 'pca', 'umap', or their corresponding distance 
             modes for the input representation.
-        k : `int`, optional (default: 30)
+        k : `int`, optional (default: 100)
             The number of nearest neighbors used to construct the adjacency matrix for graph-based modes 
             (e.g., 'knn', 'eff_res', and 'diffusion'). 
         t : `int`, optional (default: 8)
