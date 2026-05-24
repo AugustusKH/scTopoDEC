@@ -68,7 +68,7 @@ def scTopoDEC(adata,                        # single-cell args
         cluster_early_stop=False,
         soft_kmean=True,
         training_kwds={},
-        pretrain_epochs=500,                # Pretrain args    
+        pretrain_epochs=800,                # Pretrain args    
         pretrain_optimizer='adam',
         pretrain_learning_rate=0.01,  
         pretraining_kwds={},         
@@ -230,7 +230,7 @@ def scTopoDEC(adata,                        # single-cell args
             If True, use soft k-mean loss function, else use standard k-mean loss function.
         training_kwds : `dict`, optional
             Additional arguments passed to the training function, i.e. dec_train().
-        pretrain_epochs : `int`, optional (default: 500)
+        pretrain_epochs : `int`, optional (default: 800)
             Number of iterations for the initial autoencoder pretraining phase. 
             This ensures the weights are "warm" and the latent space is 
             structured before clustering begins.
