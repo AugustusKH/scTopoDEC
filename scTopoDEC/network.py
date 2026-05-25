@@ -423,7 +423,7 @@ class DEC(ZINBAutoencoder):
         
         print('Calculating clustering...')
         # 1. Extract Latent space and Cluster Probabilities
-        adata.obsm['stc'] = self.encoder.predict(inputs, verbose=0)
+        adata.obsm['X_stc'] = self.encoder.predict(inputs, verbose=0)
         q, denoise = self.model.predict(inputs, verbose=0)
     
         adata.obsm['stc_probs'] = q

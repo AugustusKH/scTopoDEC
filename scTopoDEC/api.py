@@ -538,7 +538,7 @@ def scTopoDEC(adata,                        # single-cell args
     if ae_type == 'dec':
         adata.obs['stc_cluster'] = adata.obs_names.map(adata_train.obs['stc_cluster'])
         adata.obsm['stc_probs'] = adata_train.obsm['stc_probs'] 
-        adata.obsm['stc'] = adata_train.obsm['stc']
+        adata.obsm['X_stc'] = adata_train.obsm['X_stc']
         
         if return_model:
             return (adata, network) if copy else network
