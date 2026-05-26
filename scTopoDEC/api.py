@@ -30,7 +30,7 @@ except ImportError:
 from .io import read_dataset, normalize
 from .train import pretrain, train, ramp_train
 from .network import network_options, Autoencoder, ZINBAutoencoder, DEC
-from .utils import set_reproducibility
+from .utils import set_reproducibility, estimate_optimal_noise
 
 tf.keras.backend.clear_session()
 
@@ -47,9 +47,9 @@ def scTopoDEC(adata,                        # single-cell args
         normalize_per_cell=True,
         scale=True,
         log1p=True,
-        hidden_size=(256, 128, 64, 32, 64, 128, 256), # network args
-        loss_weights=(1.0, 1.0, 0.1, 1.0),
-        noise_sd=0.2,
+        hidden_size=(256, 32, 256), # network args
+        loss_weights=(1.0, 10.0, 0.1, 2.0),
+        noise_sd=0.4,
         hidden_dropout=0.05,
         mask_rate=0.0,
         batchnorm=True,
@@ -165,8 +165,9 @@ def scTopoDEC(adata,                        # single-cell args
             If True, the input is log-transformed (log(1+x)) for the encoder.
         hidden_size : `tuple` or `list`, optional (default: (256, 64, 32, 64, 256))
             Number of neurons in hidden layers (symmetric for encoder/decoder).
-        noise_sd : `float`, optional (default: 0.2)
-            Random Gaussian noise adding to inputs and encoder layers
+        noise_sd : `float` or None, optional (default: 0.2)
+            Random Gaussian noise adding to inputs and encoder layers. If None is set, the noise
+            is estimated based on baseline separability (Silhouette Score) of the dataset.
         hidden_dropout : `float`, optional (default: 0.05)
             Dropout rate applied to hidden layers.
         mask_rate : `float`, optional (default: 0.0)
@@ -391,7 +392,7 @@ def scTopoDEC(adata,                        # single-cell args
                       logtrans_input=log1p, 
                       normalize_input=scale)
     
-    # 4. Handle batch one-hot encoding
+    # 4. Handle batch one-hot encoding 
     n_batch = 0
     if batch_key is not None:
         if batch_key not in adata_train.obs.columns:
@@ -403,7 +404,19 @@ def scTopoDEC(adata,                        # single-cell args
         n_batch = batch_matrix.shape[1]
         print(f"Batch correction enabled: {n_batch} batches detected.")
 
-    # 5. Model Initialization
+    # 5. Dynamic Noise Estimation
+    if noise_sd is None:
+        print("noise_sd is None: Dynamically estimating optimal noise based on dataset separability...")
+        guess_k = int(n_clusters) if int(n_clusters) > 0 else None
+        
+        # Pass the ALREADY processed adata_train
+        noise_sd = estimate_optimal_noise(
+            adata_train, 
+            n_clusters_guess=guess_k,
+            resolution=resolution
+        )
+
+    # 6. Model Initialization
     model_kwargs = {
         'input_size': adata_train.n_vars,
         'output_size': adata_train.n_vars,
@@ -435,7 +448,7 @@ def scTopoDEC(adata,                        # single-cell args
     network = network_options[ae_type](**model_kwargs)
     network.build()
 
-    # 5. Execution Logic
+    # 7. Execution Logic
     if ae_type == 'dec':
         # Clustering pathway
         if ramp_mode:
@@ -524,16 +537,16 @@ def scTopoDEC(adata,                        # single-cell args
                     verbose=verbose,
                     **pretraining_kwds)
             
-    # 6. Save of the entire object (Metadata + Weights)
+    # 8. Save of the entire object (Metadata + Weights)
     if train_output_dir is not None:
         print(f"Saving final model state to {train_output_dir}...")
         network.file_path = train_output_dir
         network.save()
 
-    # 7. Inference and results
+    # 9. Inference and results
     network.predict(adata_train, mode=mode, return_info=return_info, copy=False)
 
-    # 8. Return outputs
+    # 10. Return outputs
     print('\nAlgorithm runs successfully!')
     if ae_type == 'dec':
         adata.obs['stc_cluster'] = adata.obs_names.map(adata_train.obs['stc_cluster'])
