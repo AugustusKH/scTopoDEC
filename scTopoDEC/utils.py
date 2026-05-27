@@ -65,11 +65,22 @@ def estimate_optimal_noise(adata,
     
     # 1. Standard baseline reduction
     if 'X_pca' not in adata_tmp.obsm:
-        sc.pp.normalize_total(adata_tmp, target_sum=1e4)
-        sc.pp.log1p(adata_tmp)
-        sc.pp.highly_variable_genes(adata_tmp, n_top_genes=2000)
-        adata_tmp = adata_tmp[:, adata_tmp.var.highly_variable]
-        sc.pp.scale(adata_tmp, max_value=10)
+        # Check if data is already scaled/normalized. 
+        # If the minimum value is less than 0, it has already been scaled.
+        min_val = adata_tmp.X.min() 
+        
+        if min_val >= 0:
+            print("Running internal preprocessing for noise estimation...")
+            sc.pp.normalize_total(adata_tmp, target_sum=1e4)
+            sc.pp.log1p(adata_tmp)
+            if adata_tmp.n_vars > 2000:
+                sc.pp.highly_variable_genes(adata_tmp, n_top_genes=2000)
+                adata_tmp = adata_tmp[:, adata_tmp.var.highly_variable]
+            sc.pp.scale(adata_tmp, max_value=10)
+        else:
+            print("Data appears already scaled. Skipping redundant preprocessing...")
+
+        # Run PCA on the prepared data
         sc.tl.pca(adata_tmp, svd_solver='arpack')
     
     pca_features = adata_tmp.obsm['X_pca'][:, :50]
