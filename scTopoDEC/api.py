@@ -70,7 +70,7 @@ def scTopoDEC(adata,                        # single-cell args
         training_kwds={},
         pretrain_epochs=800,                # Pretrain args    
         pretrain_optimizer='adam',
-        pretrain_learning_rate=0.01,  
+        pretrain_learning_rate=0.001,  
         pretraining_kwds={},         
         reduce_lr=20,                       # Both pretrain and train args
         early_stop=30,
