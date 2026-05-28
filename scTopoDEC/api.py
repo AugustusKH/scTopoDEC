@@ -56,7 +56,7 @@ def scTopoDEC(adata,                        # single-cell args
         activation='relu',
         init='glorot_uniform',
         network_kwds={},
-        epochs=300,                         # Train args
+        epochs=500,                         # Train args
         optimizer='adam',
         learning_rate=0.0001,
         update_interval=5,
@@ -188,7 +188,7 @@ def scTopoDEC(adata,                        # single-cell args
             Weight initialization method.
         network_kwds : `dict`, optional
             Additional arguments passed to the Network class constructor.
-        epochs : `int`, optional (default: 300)
+        epochs : `int`, optional (default: 500)
             Maximum number of training iterations.
         optimizer : `str`, optional (default: 'adam')
             Optimization algorithm (e.g., 'adam', 'RMSprop').
