@@ -1,7 +1,8 @@
 import scanpy as sc
 import anndata as ad
+from scTopoDEC.api import scTopoDEC
 
-def run_scTopoDEC_large_data(adata, max_cells=10000, **kwargs):
+def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     """
     Wrapper for scTopoDEC that handles automated subsampling for datasets > 10k cells.
     """
