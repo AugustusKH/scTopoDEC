@@ -21,6 +21,6 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     
     # Project the trained network onto the full original dataset
     print("Projecting full dataset using learned weights...")
-    network.predict(adata, mode='full', copy=False)
+    network.predict(adata, mode='clustering', copy=False)
     
     return adata, network
