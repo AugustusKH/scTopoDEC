@@ -15,6 +15,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
         sc.pp.highly_variable_genes(adata_full, n_top_genes=kwargs.get('n_top_genes', 2000), flavor='seurat_v3')
         adata_full = adata_full[:, adata_full.var.highly_variable]
 
+    selected_genes = adata_full.var_names
+
     # Normalize full dataset (required for network.predict)
     adata_full = normalize(adata_full, 
                            size_factors=kwargs.get('normalize_per_cell', True), 
@@ -29,9 +31,13 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     else:
         adata_train = adata_full.copy()
 
+    # Inject input_size dynamically
+    if 'network_kwds' not in kwargs:
+        kwargs['network_kwds'] = {}
+    kwargs['network_kwds']['input_size'] = len(selected_genes)
+
     # Run training on the subset
     print("Starting training on subset...")
-    # Pass use_hvg=False to scTopoDEC because the data was already filtered to HVGs
     network = scTopoDEC(
         adata_train, 
         use_hvg=False,            # Data is already filtered to HVGs
