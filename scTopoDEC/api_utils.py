@@ -1,5 +1,5 @@
 import scanpy as sc
-from scTopoDEC.io import normalize
+from scTopoDEC.io import read_dataset, normalize
 from scTopoDEC.api import scTopoDEC
 
 def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
@@ -8,6 +8,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     """
     # Preprocess full dataset to identify HVGs
     adata_full = adata.copy()
+    adata_full = read_dataset(adata_full, check_counts=kwargs.get('check_counts', True), copy=False)
+
     if kwargs.get('use_hvg', True):
         sc.pp.highly_variable_genes(adata_full, n_top_genes=kwargs.get('n_top_genes', 2000), flavor='seurat_v3')
         adata_full = adata_full[:, adata_full.var.highly_variable]
