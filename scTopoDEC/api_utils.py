@@ -9,10 +9,17 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     # Preprocess full dataset to identify HVGs
     adata_full = adata.copy()
     adata_full = read_dataset(adata_full, check_counts=kwargs.get('check_counts', True), copy=False)
+    adata_full.layers["counts"] = adata_full.X.copy()
 
     if kwargs.get('use_hvg', True):
         sc.pp.highly_variable_genes(adata_full, n_top_genes=kwargs.get('n_top_genes', 2000), flavor='seurat_v3')
         adata_full = adata_full[:, adata_full.var.highly_variable]
+
+    # Normalize full dataset (required for network.predict)
+    adata_full = normalize(adata_full, 
+                           size_factors=kwargs.get('normalize_per_cell', True), 
+                           logtrans_input=kwargs.get('log1p', True), 
+                           normalize_input=kwargs.get('scale', True))
 
     # Subsample
     if adata_full.n_obs > max_cells:
@@ -22,17 +29,19 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     else:
         adata_train = adata_full.copy()
 
-    # Normalize full dataset (required for network.predict)
-    adata_full = adata_full[:, adata_train.var_names].copy()
-    adata_full = normalize(adata_full, 
-                           size_factors=kwargs.get('normalize_per_cell', True), 
-                           logtrans_input=kwargs.get('log1p', True), 
-                           normalize_input=kwargs.get('scale', True))
-
     # Run training on the subset
     print("Starting training on subset...")
     # Pass use_hvg=False to scTopoDEC because the data was already filtered to HVGs
-    network = scTopoDEC(adata_train, use_hvg=False, return_model=True, copy=False, **kwargs)
+    network = scTopoDEC(
+        adata_train, 
+        use_hvg=False,            # Data is already filtered to HVGs
+        normalize_per_cell=False, # Data is already normalized
+        scale=False,              # Data is already scaled
+        log1p=False,              # Data is already log-transformed
+        return_model=True, 
+        copy=False, 
+        **kwargs
+    )
     
     # Project using the normalized, HVG-filtered full dataset
     print("Projecting full dataset using learned weights...")
