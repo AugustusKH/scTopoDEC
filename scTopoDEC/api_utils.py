@@ -9,24 +9,12 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     # Preprocess full dataset to identify HVGs
     adata_full = adata.copy()
     adata_full = read_dataset(adata_full, check_counts=kwargs.get('check_counts', True), copy=False)
-    adata_full.layers["counts"] = adata_full.X.copy()
 
     if kwargs.get('use_hvg', True):
         sc.pp.highly_variable_genes(adata_full, n_top_genes=kwargs.get('n_top_genes', 2000), flavor='seurat_v3')
         adata_full = adata_full[:, adata_full.var.highly_variable]
 
-    selected_genes = adata_full.var_names
-
-    # Normalize full dataset (required for network.predict)
-    adata_full = normalize(adata_full, 
-                           filter_min_counts=False,
-                           size_factors=kwargs.get('normalize_per_cell', True), 
-                           logtrans_input=kwargs.get('log1p', True), 
-                           normalize_input=kwargs.get('scale', True))
-    
-    print(f"Full dataset after HVG selection has {adata_full.n_obs} cells and {adata_full.n_vars} genes.")
-
-    # Subsample
+    # Subsampling
     if adata_full.n_obs > max_cells:
         print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
         adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
@@ -34,10 +22,21 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     else:
         adata_train = adata_full.copy()
 
+    # Match the genes from subset to the full dataset
+    sc.pp.filter_genes(adata_train, min_counts=1)
+    adata_full = adata_full[:, adata_train.var_names].copy()
+
+    # Normalize full dataset (required for network.predict)
+    adata_full = normalize(adata_full, 
+                           filter_min_counts=False,
+                           size_factors=kwargs.get('normalize_per_cell', True), 
+                           logtrans_input=kwargs.get('log1p', True), 
+                           normalize_input=kwargs.get('scale', True))
+
     # Inject input_size dynamically
     if 'network_kwds' not in kwargs:
         kwargs['network_kwds'] = {}
-    kwargs['network_kwds']['input_size'] = len(selected_genes)
+    kwargs['network_kwds']['input_size'] = adata_train.shape[1]
 
     # Run training on the subset
     print("Starting training on subset...")
@@ -47,6 +46,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
         normalize_per_cell=False, # Data is already normalized
         scale=False,              # Data is already scaled
         log1p=False,              # Data is already log-transformed
+        check_counts=False,       # Counts have already been checked
         return_model=True, 
         copy=False, 
         **kwargs
