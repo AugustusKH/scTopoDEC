@@ -23,6 +23,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
         adata_train = adata_full.copy()
 
     # Normalize full dataset (required for network.predict)
+    adata_full = adata_full[:, adata_train.var_names].copy()
     adata_full = normalize(adata_full, 
                            size_factors=kwargs.get('normalize_per_cell', True), 
                            logtrans_input=kwargs.get('log1p', True), 
