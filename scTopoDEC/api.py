@@ -388,9 +388,9 @@ def scTopoDEC(adata,                        # single-cell args
         print(f"{ae_type.upper()} mode: Using full dataset ({adata.n_vars} genes).")
 
     adata_train = normalize(adata_train, 
-                      size_factors=normalize_per_cell, 
-                      logtrans_input=log1p, 
-                      normalize_input=scale)
+                            size_factors=normalize_per_cell, 
+                            logtrans_input=log1p, 
+                            normalize_input=scale)
     
     # 4. Handle batch one-hot encoding 
     n_batch = 0

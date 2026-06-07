@@ -19,9 +19,12 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
 
     # Normalize full dataset (required for network.predict)
     adata_full = normalize(adata_full, 
+                           filter_min_counts=False,
                            size_factors=kwargs.get('normalize_per_cell', True), 
                            logtrans_input=kwargs.get('log1p', True), 
                            normalize_input=kwargs.get('scale', True))
+    
+    print(f"Full dataset after HVG selection has {adata_full.n_obs} cells and {adata_full.n_vars} genes.")
 
     # Subsample
     if adata_full.n_obs > max_cells:
