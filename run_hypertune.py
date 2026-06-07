@@ -31,8 +31,8 @@ def preprocess_data(adata, ground_truth=None):
     Preprocess adata and encode ground truth label
     """
     # Preprocessing
-    sc.pp.filter_genes(adata, min_cells=5)
-    sc.pp.filter_cells(adata, min_counts=5)
+    sc.pp.filter_genes(adata, min_cells=3)
+    sc.pp.filter_cells(adata, min_counts=200)
     adata.layers["counts"] = adata.X.copy() # Saving count data
 
     # Ground truth encoding
