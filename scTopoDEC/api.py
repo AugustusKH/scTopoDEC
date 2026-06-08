@@ -420,6 +420,7 @@ def scTopoDEC(adata,                        # single-cell args
     model_kwargs = {
         'input_size': adata_train.n_vars,
         'output_size': adata_train.n_vars,
+        'batch_size': batch_size,
         'n_batch': n_batch,
         'hidden_size': hidden_size,
         'hidden_dropout': hidden_dropout,

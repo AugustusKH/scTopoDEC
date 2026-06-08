@@ -136,7 +136,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
         model.summary()
 
     inputs = {
-        'count': adata.X, 
+        'count': tf.cast(adata.X.toarray() if sp.sparse.issparse(adata.X) else adata.X, tf.float32), 
         'size_factors': adata.obs.size_factors.values
     }
 

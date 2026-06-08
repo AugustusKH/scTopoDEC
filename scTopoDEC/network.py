@@ -61,6 +61,7 @@ class Autoencoder():
 
     def build(self, n_batch=0):
         self.input_layer = layers.Input(shape=(self.input_size,), name='count', sparse=True)
+        x = layers.Lambda(lambda x: tf.sparse.to_dense(x) if isinstance(x, tf.SparseTensor) else x)(self.input_layer)
         self.sf_layer = layers.Input(shape=(1,), name='size_factors')
 
         # Apply masking
