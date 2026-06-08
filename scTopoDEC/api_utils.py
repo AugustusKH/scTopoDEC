@@ -1,15 +1,20 @@
+import os
 import scanpy as sc
 from scTopoDEC.io import read_dataset, normalize
 from scTopoDEC.api import scTopoDEC
+from scTopoDEC.network import network_options
+from scTopoDEC.train import pretrain
 
 def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
     """
-    Wrapper for scTopoDEC to handle large single-cell datasets by subsampling a representative 
-    training subset before projecting the entire dataset.
+    Wrapper for scTopoDEC to handle large single-cell datasets. 
+    It pretrains the autoencoder on the full dataset for global manifold learning, 
+    then performs topological DEC clustering on a representative subsample, 
+    and finally projects the entire dataset.
 
     Args:
         adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
-        max_cells (int): The number of cells to subsample for model training. Defaults to 2000.
+        max_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
         leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
                                    to ensure diverse cell representation. Defaults to False.
         leiden_resolution (float): Resolution parameter for the Leiden clustering if 
@@ -25,15 +30,23 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         network (object): The trained scTopoDEC network object containing model weights 
                           and projection methods.
     """
-    # Preprocess full dataset to identify HVGs
+    # 1. Preprocess full dataset
     adata_full = adata.copy()
     adata_full = read_dataset(adata_full, check_counts=kwargs.get('check_counts', True), copy=False)
 
+    # 2. Identify HVGs on the full dataset
     if kwargs.get('use_hvg', True):
         sc.pp.highly_variable_genes(adata_full, n_top_genes=kwargs.get('n_top_genes', 2000), flavor='seurat_v3')
         adata_full = adata_full[:, adata_full.var.highly_variable]
 
-    # Subsampling
+    # 3. Normalize the full dataset 
+    adata_full = normalize(adata_full, 
+                           filter_min_counts=False,
+                           size_factors=kwargs.get('normalize_per_cell', True), 
+                           logtrans_input=kwargs.get('log1p', True), 
+                           normalize_input=kwargs.get('scale', True))
+
+    # 4. Subsampling 
     if adata_full.n_obs > max_cells:
         print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
         if leiden_subsampling:
@@ -47,24 +60,43 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     else:
         adata_train = adata_full.copy()
 
-    # Match the genes from subset to the full dataset
-    sc.pp.filter_genes(adata_train, min_counts=1)
-    adata_full = adata_full[:, adata_train.var_names].copy()
-
-    # Normalize full dataset (required for network.predict)
-    adata_full = normalize(adata_full, 
-                           filter_min_counts=False,
-                           size_factors=kwargs.get('normalize_per_cell', True), 
-                           logtrans_input=kwargs.get('log1p', True), 
-                           normalize_input=kwargs.get('scale', True))
-
-    # Inject input_size dynamically
+    # Inject input_size dynamically based on HVGs
     if 'network_kwds' not in kwargs:
         kwargs['network_kwds'] = {}
-    kwargs['network_kwds']['input_size'] = adata_train.shape[1]
+    kwargs['network_kwds']['input_size'] = adata_full.shape[1]
 
-    # Run training on the subset
-    print("Starting training on subset...")
+    # ========================================================
+    # PHASE 1: GLOBAL PRETRAINING ON FULL DATASET
+    # ========================================================
+    print(f"\n--- Phase 1: Global Pretraining ({adata_full.n_obs} cells) ---")
+    
+    # Initialize the architecture
+    network = network_options['dec'](
+        n_clusters=kwargs.get('n_clusters', 0),
+        **kwargs['network_kwds']
+    )
+    network.build()
+    
+    # Pretrain Autoencoder
+    pretrain(adata_full, 
+             network, 
+             epochs=kwargs.get('pretrain_epochs', 800),
+             use_raw_as_output=True,
+             batch_size=kwargs.get('batch_size', 256),
+             verbose=kwargs.get('verbose', True))
+             
+    # Save global weights to bridge to the main clustering API
+    os.makedirs("stc_weights", exist_ok=True)
+    global_weights_path = "stc_weights/global_pretrain_weights.weights.h5"
+    network.save_weights(global_weights_path)
+    
+    # Instruct scTopoDEC to load these weights instead of pretraining again
+    kwargs['initial_pretrain_weights'] = global_weights_path
+
+    # ========================================================
+    # PHASE 2: DEC CLUSTERING ON SUBSAMPLED DATASET
+    # ========================================================
+    print(f"\n--- Phase 2: Topological Clustering ({adata_train.n_obs} cells) ---")
     network = scTopoDEC(
         adata_train, 
         use_hvg=False,            # Data is already filtered to HVGs
@@ -77,8 +109,10 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         **kwargs
     )
     
-    # Project using the normalized, HVG-filtered full dataset
-    print("Projecting full dataset using learned weights...")
+    # ========================================================
+    # PHASE 3: PROJECT FULL DATASET
+    # ========================================================
+    print(f"\n--- Phase 3: Projecting Full Dataset ({adata_full.n_obs} cells) ---")
     network.predict(adata_full, mode='clustering', copy=False)
     
     # Map results back to original adata
