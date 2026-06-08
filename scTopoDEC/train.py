@@ -1,6 +1,7 @@
 import csv, os, random
 import time
 import numpy as np
+import scipy as sp
 import tensorflow as tf
 import keras
 from keras import layers, models, ops, optimizers
@@ -148,6 +149,10 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
         target = adata.raw.X[:, gene_idx] if use_raw_as_output else adata.X[:, gene_idx]
     else:
         target = adata.raw.X if use_raw_as_output else adata.X
+
+    # If batch targets are sparse matrices, convert them to dense matrix
+    if sp.sparse.issparse(target):
+        target = target.toarray()
 
     history = model.fit(
         inputs, 
@@ -320,7 +325,24 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
             if len(batch_idx) < k:
                 continue
 
-            x_c = tf.cast(adata.X[batch_idx], tf.float32)
+            # x_c = tf.cast(adata.X[batch_idx], tf.float32)
+            # x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
+
+            # # Extract Batch slice
+            # x_b = None
+            # if 'batch_onehot' in adata.obsm:
+            #     x_b = tf.cast(adata.obsm['batch_onehot'][batch_idx], tf.float32)
+
+            # topo_input_batch = None
+            # y_p_batch = tf.cast(p[batch_idx], tf.float32)
+            # y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+
+            # Extract matrices and convert slice subsets safely from sparse 
+            raw_batch_x = adata.X[batch_idx]
+            if sp.sparse.issparse(raw_batch_x):
+                raw_batch_x = raw_batch_x.toarray()
+
+            x_c = tf.cast(raw_batch_x, tf.float32)
             x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
 
             # Extract Batch slice
@@ -330,7 +352,12 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 
             topo_input_batch = None
             y_p_batch = tf.cast(p[batch_idx], tf.float32)
-            y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+    
+            # Extract target slice and convert from sparse if needed
+            raw_batch_y = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+            if sp.sparse.issparse(raw_batch_y):
+                raw_batch_y = raw_batch_y.toarray()
+            y_r = tf.cast(raw_batch_y, tf.float32)
 
             if topo_input is not None:
                 topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)
@@ -573,7 +600,12 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
                 if len(batch_idx) < k:
                     continue
 
-                x_c = tf.cast(adata.X[batch_idx], tf.float32)
+                # Extract matrices and convert slice subsets safely from sparse 
+                raw_batch_x = adata.X[batch_idx]
+                if sp.sparse.issparse(raw_batch_x):
+                    raw_batch_x = raw_batch_x.toarray()
+
+                x_c = tf.cast(raw_batch_x, tf.float32)
                 x_s = tf.cast(adata.obs.size_factors.values[batch_idx], tf.float32)
 
                 # Extract Batch slice
@@ -583,7 +615,12 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
 
                 topo_input_batch = None
                 y_p_batch = tf.cast(p[batch_idx], tf.float32)
-                y_r = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+    
+                # Extract target slice and convert from sparse if needed
+                raw_batch_y = adata.raw.X[batch_idx] if use_raw_as_output else adata.X[batch_idx]
+                if sp.sparse.issparse(raw_batch_y):
+                    raw_batch_y = raw_batch_y.toarray()
+                y_r = tf.cast(raw_batch_y, tf.float32)
 
                 if topo_input is not None:
                     topo_input_batch = tf.cast(topo_input[batch_idx], tf.float32)

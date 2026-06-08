@@ -3,6 +3,7 @@ import pickle
 from abc import ABC, abstractmethod 
 
 import numpy as np
+import scipy as sp
 import scanpy as sc
 import tensorflow as tf
 from sklearn.preprocessing import LabelEncoder
@@ -23,13 +24,14 @@ advanced_activations = ('PReLU', 'LeakyReLU')
 
 
 class Autoencoder():
-    def __init__(self, input_size, output_size=None, hidden_size=(256, 64, 32, 64, 256),
+    def __init__(self, input_size, batch_size=256, output_size=None, hidden_size=(256, 64, 32, 64, 256),
                  noise_sd=0., l2_coef=0., l1_coef=0., l2_enc_coef=0., l1_enc_coef=0.,
                  ridge=0., hidden_dropout=0., input_dropout=0., mask_rate=0.0,
                  batchnorm=True, activation='relu', init='glorot_uniform',
                  file_path=None, debug=False, **kwargs):
 
         self.input_size = input_size
+        self.batch_size = batch_size
         self.output_size = output_size or input_size
         self.hidden_size = hidden_size
         self.noise_sd = noise_sd
@@ -238,17 +240,48 @@ class Autoencoder():
         assert mode in ('denoise', 'latent', 'full'), 'Unknown mode'
         adata = adata.copy() if copy else adata
 
-        inputs = {
-            'count': adata.X, 
-            'size_factors': adata.obs.size_factors.values
-        }
+        # inputs = {
+        #     'count': adata.X, 
+        #     'size_factors': adata.obs.size_factors.values
+        # }
+
+        # if mode in ('latent', 'full'):
+        #     print('Calculating low dimensional representations...')
+        #     adata.obsm['ae'] = self.encoder.predict(inputs)        
+        # if mode in ('denoise', 'full'):
+        #     print('Calculating reconstructions...')
+        #     adata.X = self.model.predict(inputs)
+
+        num_cells = adata.n_obs
+        latent_list = []
+        recon_list = []
+
+        # Chunk predictions over mini-batches to remain memory safe with sparse matrix configurations
+        for start_idx in range(0, num_cells, self.batch_size):
+            end_idx = min(start_idx + self.batch_size, num_cells)
+            
+            batch_x = adata.X[start_idx:end_idx]
+            if sp.sparse.issparse(batch_x):
+                batch_x = batch_x.toarray()
+            
+            inputs = {
+                'count': batch_x,
+                'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
+            }
+
+            if mode in ('latent', 'full'):
+                lat_pred = self.encoder.predict(inputs, verbose=0)
+                latent_list.append(lat_pred)
+            if mode in ('denoise', 'full'):
+                rec_pred = self.model.predict(inputs, verbose=0)
+                recon_list.append(rec_pred)
 
         if mode in ('latent', 'full'):
             print('Calculating low dimensional representations...')
-            adata.obsm['ae'] = self.encoder.predict(inputs)        
+            adata.obsm['ae'] = np.concatenate(latent_list, axis=0)        
         if mode in ('denoise', 'full'):
             print('Calculating reconstructions...')
-            adata.X = self.model.predict(inputs)
+            adata.X = np.concatenate(recon_list, axis=0)
 
         return adata if copy else None
 
@@ -297,26 +330,69 @@ class ZINBAutoencoder(Autoencoder):
     def predict(self, adata, mode='denoise', return_info=False, copy=False, colnames=None):
         adata = adata.copy() if copy else adata
 
-        inputs = {
-            'count': adata.X, 
-            'size_factors': adata.obs.size_factors.values
-        }
+        # inputs = {
+        #     'count': adata.X, 
+        #     'size_factors': adata.obs.size_factors.values
+        # }
+
+        # if return_info:
+        #     # Predict using the sub-models mapped in build_output
+        #     adata.obsm['zinb_ae_dispersion'] = self.extra_models['dispersion'].predict(inputs, verbose=0)
+        #     adata.obsm['zinb_ae_dropout'] = self.extra_models['pi'].predict(inputs, verbose=0)
+
+        # if mode in ('denoise', 'full'):
+        #     print('Calculating reconstructions...')
+        #     raw_pred = self.model.predict(inputs, verbose=0)
+        #     # Slice only the mean (first 1/3 of the bundle)
+        #     n_genes = raw_pred.shape[1] // 3
+        #     adata.X = raw_pred[:, :n_genes]
+
+        # if mode in ('latent', 'full'):
+        #     print('Calculating low dimensional representations...')
+        #     adata.obsm['zinb_ae'] = self.encoder.predict(inputs, verbose=0)
+
+        num_cells = adata.n_obs
+        disp_list = []
+        drop_list = []
+        recon_list = []
+        latent_list = []
+
+        # Sparse-safe chunked predict execution 
+        for start_idx in range(0, num_cells, self.batch_size):
+            end_idx = min(start_idx + self.batch_size, num_cells)
+            
+            batch_x = adata.X[start_idx:end_idx]
+            if sp.sparse.issparse(batch_x):
+                batch_x = batch_x.toarray()
+
+            inputs = {
+                'count': batch_x, 
+                'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
+            }
+
+            if return_info:
+                disp_list.append(self.extra_models['dispersion'].predict(inputs, verbose=0))
+                drop_list.append(self.extra_models['pi'].predict(inputs, verbose=0))
+
+            if mode in ('denoise', 'full'):
+                raw_pred = self.model.predict(inputs, verbose=0)
+                n_genes = raw_pred.shape[1] // 3
+                recon_list.append(raw_pred[:, :n_genes])
+
+            if mode in ('latent', 'full'):
+                latent_list.append(self.encoder.predict(inputs, verbose=0))
 
         if return_info:
-            # Predict using the sub-models mapped in build_output
-            adata.obsm['zinb_ae_dispersion'] = self.extra_models['dispersion'].predict(inputs, verbose=0)
-            adata.obsm['zinb_ae_dropout'] = self.extra_models['pi'].predict(inputs, verbose=0)
+            adata.obsm['zinb_ae_dispersion'] = np.concatenate(disp_list, axis=0)
+            adata.obsm['zinb_ae_dropout'] = np.concatenate(drop_list, axis=0)
 
         if mode in ('denoise', 'full'):
             print('Calculating reconstructions...')
-            raw_pred = self.model.predict(inputs, verbose=0)
-            # Slice only the mean (first 1/3 of the bundle)
-            n_genes = raw_pred.shape[1] // 3
-            adata.X = raw_pred[:, :n_genes]
+            adata.X = np.concatenate(recon_list, axis=0)
 
         if mode in ('latent', 'full'):
             print('Calculating low dimensional representations...')
-            adata.obsm['zinb_ae'] = self.encoder.predict(inputs, verbose=0)
+            adata.obsm['zinb_ae'] = np.concatenate(latent_list, axis=0)
 
         return adata if copy else None
 
@@ -385,11 +461,28 @@ class DEC(ZINBAutoencoder):
     def get_initial_clusters(self, adata, n_neighbors=15, resolution=1.):
         """Detects initial clusters in latent space using Leiden."""
         # 1. Get latent representation
-        inputs = {
-            'count': adata.X, 
-            'size_factors': adata.obs.size_factors.values
-        }
-        z = self.encoder.predict(inputs, verbose=0)
+        # inputs = {
+        #     'count': adata.X, 
+        #     'size_factors': adata.obs.size_factors.values
+        # }
+        # z = self.encoder.predict(inputs, verbose=0)
+
+        num_cells = adata.n_obs
+        latent_list = []
+
+        for start_idx in range(0, num_cells, self.batch_size):
+            end_idx = min(start_idx + self.batch_size, num_cells)
+            batch_x = adata.X[start_idx:end_idx]
+            if sp.sparse.issparse(batch_x):
+                batch_x = batch_x.toarray()
+
+            inputs = {
+                'count': batch_x, 
+                'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
+            }
+            latent_list.append(self.encoder.predict(inputs, verbose=0))
+            
+        z = np.concatenate(latent_list, axis=0)
     
         # 2. Community detection
         adata_latent = sc.AnnData(z)
@@ -416,15 +509,40 @@ class DEC(ZINBAutoencoder):
         assert mode in ('clustering'), 'This model is used for clustering.'
         adata = adata.copy() if copy else adata
 
-        inputs = {
-            'count': adata.X, 
-            'size_factors': adata.obs.size_factors.values
-        }
+        # inputs = {
+        #     'count': adata.X, 
+        #     'size_factors': adata.obs.size_factors.values
+        # }
         
-        print('Calculating clustering...')
+        # print('Calculating clustering...')
         # 1. Extract Latent space and Cluster Probabilities
-        adata.obsm['X_stc'] = self.encoder.predict(inputs, verbose=0)
-        q, denoise = self.model.predict(inputs, verbose=0)
+        # adata.obsm['X_stc'] = self.encoder.predict(inputs, verbose=0)
+        # q, denoise = self.model.predict(inputs, verbose=0)
+
+        num_cells = adata.n_obs
+        latent_list = []
+        q_list = []
+
+        print('Calculating clustering...')
+        # Chunked predictions over the sparse full dataset
+        for start_idx in range(0, num_cells, self.batch_size):
+            end_idx = min(start_idx + self.batch_size, num_cells)
+            
+            batch_x = adata.X[start_idx:end_idx]
+            if sp.sparse.issparse(batch_x):
+                batch_x = batch_x.toarray()
+
+            inputs = {
+                'count': batch_x, 
+                'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
+            }
+            
+            latent_list.append(self.encoder.predict(inputs, verbose=0))
+            q_batch, _ = self.model.predict(inputs, verbose=0)
+            q_list.append(q_batch)
+    
+        adata.obsm['X_stc'] = np.concatenate(latent_list, axis=0)
+        q = np.concatenate(q_list, axis=0)
     
         adata.obsm['stc_probs'] = q
     

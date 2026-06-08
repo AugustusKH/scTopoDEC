@@ -30,6 +30,14 @@ class AnnSequence(Sequence):
         batch = self.matrix[curr_idx]
         batch_sf = self.size_factors[curr_idx]
 
+        # Only convert the small micro-batch to dense to save memory
+        if sp.sparse.issparse(batch):
+            batch = batch.toarray()
+        elif hasattr(batch, "toarray"):
+            batch = batch.toarray()
+        
+        batch = np.asarray(batch, dtype=np.float32)
+
         # return an (X, Y) pair
         return {'count': batch, 'size_factors': batch_sf}, batch
 
@@ -67,7 +75,7 @@ def spare_to_dense_count(adata):
     return adata
 
 
-def read_dataset(adata, transpose=False, test_split=False, copy=False, check_counts=True):
+def read_dataset(adata, transpose=False, test_split=False, copy=False, check_counts=True, spare_to_dense=False):
     if isinstance(adata, sc.AnnData):
         adata = adata.copy() if copy else adata
     elif isinstance(adata, str):
@@ -79,7 +87,8 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
         # Step 1: Check if current X is raw
         if is_raw_counts(adata.X):
             print("Confirmed: adata.X contains raw counts.")
-            adata = spare_to_dense_count(adata)
+            if spare_to_dense:
+                adata = spare_to_dense_count(adata)
         else:
             print("Notice: adata.X appears normalized. Checking 'counts' layer...")
             
@@ -90,7 +99,8 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
                 adata.layers["normalized"] = adata.X.copy()
                 # Move raw counts to X for the preprocessing functions
                 adata.X = adata.layers["counts"].copy()
-                adata = spare_to_dense_count(adata)
+                if spare_to_dense:
+                    adata = spare_to_dense_count(adata)
             else:
                 # Step 3: Critical Failure
                 raise ValueError(
@@ -101,7 +111,7 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
     if transpose: 
         adata = adata.transpose()
         # Safe for sometimes libraries return a sparse view
-        if hasattr(adata.X, "toarray"):
+        if hasattr(adata.X, "toarray") and spare_to_dense:
             adata.X = adata.X.toarray()
 
     return adata
@@ -122,7 +132,11 @@ def normalize(adata, filter_min_counts=True, size_factors=True, normalize_input=
         adata.obs['size_factors'] = 1.0
 
     # Clip values to avoid log(0)
-    adata.X = np.clip(adata.X, 1e-10, 1e6)
+    if sp.sparse.issparse(adata.X):
+        # Clipping sparse structures without breaking compression
+        adata.X.data = np.clip(adata.X.data, 1e-10, 1e6)
+    else:
+        adata.X = np.clip(adata.X, 1e-10, 1e6)
 
     if logtrans_input:
         sc.pp.log1p(adata)
