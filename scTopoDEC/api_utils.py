@@ -4,6 +4,7 @@ from scTopoDEC.io import read_dataset, normalize
 from scTopoDEC.api import scTopoDEC
 from scTopoDEC.network import network_options
 from scTopoDEC.train import pretrain
+from scTopoDEC.utils import set_reproducibility, estimate_optimal_noise
 
 def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
     """
@@ -30,6 +31,14 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         network (object): The trained scTopoDEC network object containing model weights 
                           and projection methods.
     """
+    # ========================================================
+    # DETERMINISM ENFORCEMENT
+    # ========================================================
+    # Extract the random state and enforce it across all PRNGs
+    # to satisfy TensorFlow's strict determinism requirements.
+    seed_val = kwargs.get('random_state', 0)
+    set_reproducibility(seed=seed_val)
+
     # 1. Preprocess full dataset
     adata_full = adata.copy()
     adata_full = read_dataset(adata_full, check_counts=kwargs.get('check_counts', True), copy=False)
@@ -66,6 +75,28 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     kwargs['network_kwds']['input_size'] = adata_full.shape[1]
 
     # ========================================================
+    # PHASE 0: DYNAMIC NOISE ESTIMATION
+    # ========================================================
+    noise_sd = kwargs.get('noise_sd', None)
+    n_clusters = kwargs.get('n_clusters', 0)
+    
+    if noise_sd is None:
+        print("\n--- Phase 0: Dynamic Noise Estimation ---")
+        print("noise_sd is None: Dynamically estimating optimal noise based on dataset separability...")
+        guess_k = int(n_clusters) if int(n_clusters) > 0 else None
+        
+        # Estimate noise on the scaled, subsampled training data
+        noise_sd = estimate_optimal_noise(
+            adata_train, 
+            n_clusters_guess=guess_k,
+            resolution=kwargs.get('resolution', 0.8) # Grab resolution from kwargs if it exists
+        )
+        print(f"Estimated optimal noise_sd: {noise_sd:.4f}")
+        
+        # Inject the estimated noise back into kwargs so the network and API use it
+        kwargs['noise_sd'] = noise_sd
+
+    # ========================================================
     # PHASE 1: GLOBAL PRETRAINING ON FULL DATASET
     # ========================================================
     print(f"\n--- Phase 1: Global Pretraining ({adata_full.n_obs} cells) ---")
@@ -73,6 +104,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # Initialize the architecture
     network = network_options['dec'](
         n_clusters=kwargs.get('n_clusters', 0),
+        noise_sd=kwargs['noise_sd'], # Explicitly pass the noise
         **kwargs['network_kwds']
     )
     network.build()
