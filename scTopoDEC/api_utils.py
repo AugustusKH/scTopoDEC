@@ -2,9 +2,28 @@ import scanpy as sc
 from scTopoDEC.io import read_dataset, normalize
 from scTopoDEC.api import scTopoDEC
 
-def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
+def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
     """
-     Wrapper for scTopoDEC that handles automated subsampling for datasets > 10k cells.
+    Wrapper for scTopoDEC to handle large single-cell datasets by subsampling a representative 
+    training subset before projecting the entire dataset.
+
+    Args:
+        adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
+        max_cells (int): The number of cells to subsample for model training. Defaults to 2000.
+        leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
+                                   to ensure diverse cell representation. Defaults to False.
+        leiden_resolution (float): Resolution parameter for the Leiden clustering if 
+                                   leiden_subsampling is enabled. Defaults to 0.5.
+        **kwargs: Arbitrary keyword arguments passed directly to the core scTopoDEC API 
+                  (e.g., n_clusters, loss_weights, hidden_size).
+
+    Returns:
+        adata (AnnData): The input AnnData object, now containing the following fields:
+                         - adata.obs['stc_cluster']: Final cluster assignments.
+                         - adata.obsm['stc_probs']: Cluster membership probabilities.
+                         - adata.obsm['X_stc']: The learned topological latent embedding.
+        network (object): The trained scTopoDEC network object containing model weights 
+                          and projection methods.
     """
     # Preprocess full dataset to identify HVGs
     adata_full = adata.copy()
@@ -17,8 +36,14 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, **kwargs):
     # Subsampling
     if adata_full.n_obs > max_cells:
         print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
-        adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
-                                      random_state=kwargs.get('random_state', 0), copy=True)
+        if leiden_subsampling:
+            sc.pp.neighbors(adata_full)
+            sc.tl.leiden(adata_full, resolution=leiden_resolution)
+            adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=max_cells, 
+                                          random_state=kwargs.get('random_state', 0), copy=True)
+        else:
+            adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
+                                          random_state=kwargs.get('random_state', 0), copy=True)
     else:
         adata_train = adata_full.copy()
 
