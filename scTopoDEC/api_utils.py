@@ -134,7 +134,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     n_cl = int(n_clusters) if int(n_clusters) > 0 else 0
     network = network_options['dec'](
         n_clusters=n_cl,
-        noise_sd=kwargs['noise_sd'], 
+        noise_sd=noise_sd, 
         **net_kwargs
     )
     # Build the network and pass the batch dimension explicitly
@@ -188,6 +188,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         start_train = time.time()
         network = scTopoDEC(
             adata_train, 
+            noise_sd=noise_sd,
             use_hvg=False,            
             normalize_per_cell=False, 
             scale=False,              
