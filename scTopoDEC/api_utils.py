@@ -100,6 +100,17 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # PHASE 1: GLOBAL PRETRAINING ON FULL DATASET
     # ========================================================
     print(f"\n--- Phase 1: Global Pretraining ({adata_full.n_obs} cells) ---")
+
+    # Align architectures of the pretraining to force Phase 1 to match Phase 2's structure.
+    net_kwargs = kwargs.get('network_kwds', {}).copy()
+    
+    # Use user-provided hidden_size, otherwise fallback to the API default (256, 32, 256)
+    net_kwargs['hidden_size'] = kwargs.get('hidden_size', (256, 32, 256))
+    
+    # Pass any other structural arguments if provided in kwargs
+    for key in ['activation', 'batchnorm', 'hidden_dropout', 'input_dropout', 'init', 'mask_rate']:
+        if key in kwargs:
+            net_kwargs[key] = kwargs[key]
     
     # Initialize the architecture
     network = network_options['dec'](
