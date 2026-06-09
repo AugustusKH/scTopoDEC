@@ -185,6 +185,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         stc_api.normalize = lambda adata, **kw: adata
 
     try:
+        start_train = time.time()
         network = scTopoDEC(
             adata_train, 
             use_hvg=False,            
@@ -196,6 +197,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
             copy=False, 
             **kwargs
         )
+        end_train = time.time() 
+        print(f"Phase 2: Training complete in {end_train - start_train:.2f} seconds.")
     finally:
         sc.pp.filter_genes = original_filter_genes
         if original_api_normalize is not None:
