@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -144,6 +145,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     network.model = network.zinb_ae 
 
     # Pretrain Autoencoder
+    start_pretrain = time.time()
     pretrain(adata_full, 
              network, 
              epochs=kwargs.get('pretrain_epochs', 800),
@@ -154,6 +156,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
              batch_size=kwargs.get('batch_size', 256),
              verbose=verbose_flag
     )
+    end_pretrain = time.time() 
+    print(f"Phase 1: Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
              
     # Restore the full DEC model for subsequent clustering
     network.model = full_dec_model
