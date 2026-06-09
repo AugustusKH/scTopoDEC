@@ -116,7 +116,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     network = network_options['dec'](
         n_clusters=kwargs.get('n_clusters', 0),
         noise_sd=kwargs['noise_sd'], # Explicitly pass the noise
-        **kwargs['network_kwds']
+        **net_kwargs
     )
     network.build()
     
