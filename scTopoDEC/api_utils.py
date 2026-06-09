@@ -171,10 +171,15 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # ========================================================
     print(f"\n--- Phase 2: Topological Clustering ({adata_train.n_obs} cells) ---")
     # Since normalization was already applied to the data in Phase 1, we force the API to skip this step entirely.
-    import scTopoDEC.io as stc_io
-    original_normalize = stc_io.normalize
-    stc_io.normalize = lambda x, **kw: x  # Dummy pass-through function
+    import scTopoDEC.api as stc_api
     
+    original_filter_genes = sc.pp.filter_genes
+    original_api_normalize = getattr(stc_api, 'normalize', None)
+    
+    sc.pp.filter_genes = lambda *args, **kw: None
+    if original_api_normalize is not None:
+        stc_api.normalize = lambda adata, **kw: adata
+
     try:
         network = scTopoDEC(
             adata_train, 
@@ -188,8 +193,9 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
             **kwargs
         )
     finally:
-        # Guarantee the original function is restored
-        stc_io.normalize = original_normalize
+        sc.pp.filter_genes = original_filter_genes
+        if original_api_normalize is not None:
+            stc_api.normalize = original_api_normalize
     
     # ========================================================
     # PHASE 3: PROJECT FULL DATASET
