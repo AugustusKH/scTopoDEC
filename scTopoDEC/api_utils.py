@@ -91,7 +91,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     kwargs['network_kwds']['input_size'] = adata_full.shape[1]
 
     # Dynamic noise estimation if not provided by user
-    noise_sd = kwargs.get('noise_sd', None)
+    noise_sd = kwargs.get('noise_sd', 0.4)
     n_clusters = kwargs.get('n_clusters', 0)
     verbose_flag = kwargs.get('verbose', True)
     
