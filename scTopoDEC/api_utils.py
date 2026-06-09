@@ -1,4 +1,6 @@
 import os
+import numpy as np
+import pandas as pd
 import scanpy as sc
 from scTopoDEC.io import read_dataset, normalize
 from scTopoDEC.api import scTopoDEC
@@ -34,8 +36,6 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # ========================================================
     # DETERMINISM ENFORCEMENT
     # ========================================================
-    # Extract the random state and enforce it across all PRNGs
-    # to satisfy TensorFlow's strict determinism requirements.
     seed_val = kwargs.get('random_state', 0)
     set_reproducibility(seed=seed_val)
 
@@ -55,17 +55,33 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
                            logtrans_input=kwargs.get('log1p', True), 
                            normalize_input=kwargs.get('scale', True))
 
-    # 4. Subsampling 
+    # ========================================================
+    # PHASE 0: BATCH HANDLING AND SUBSAMPLING
+    # ========================================================
+    # Handle batch one-hot encoding on the full dataset 
+    batch_key = kwargs.get('batch_key', None)
+    n_batch = 0
+    if batch_key is not None:
+        if batch_key not in adata_full.obs.columns:
+            raise ValueError(f"batch_key '{batch_key}' not found in adata.obs")
+        
+        # Convert batch categories to one-hot matrix
+        batch_matrix = pd.get_dummies(adata_full.obs[batch_key]).values
+        adata_full.obsm['batch_onehot'] = batch_matrix.astype(np.float32)
+        n_batch = batch_matrix.shape[1]
+        print(f"Batch correction enabled: {n_batch} batches detected.")
+
+    # Subsampling (adata_train will now safely inherit the batch_onehot matrix)
     if adata_full.n_obs > max_cells:
         print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
         if leiden_subsampling:
             sc.pp.neighbors(adata_full)
             sc.tl.leiden(adata_full, resolution=leiden_resolution)
             adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=max_cells, 
-                                          random_state=kwargs.get('random_state', 0), copy=True)
+                                          random_state=seed_val, copy=True)
         else:
             adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
-                                          random_state=kwargs.get('random_state', 0), copy=True)
+                                          random_state=seed_val, copy=True)
     else:
         adata_train = adata_full.copy()
 
@@ -74,26 +90,22 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         kwargs['network_kwds'] = {}
     kwargs['network_kwds']['input_size'] = adata_full.shape[1]
 
-    # ========================================================
-    # PHASE 0: DYNAMIC NOISE ESTIMATION
-    # ========================================================
+    # Dynamic noise estimation if not provided by user
     noise_sd = kwargs.get('noise_sd', None)
     n_clusters = kwargs.get('n_clusters', 0)
+    verbose_flag = kwargs.get('verbose', True)
     
     if noise_sd is None:
         print("\n--- Phase 0: Dynamic Noise Estimation ---")
         print("noise_sd is None: Dynamically estimating optimal noise based on dataset separability...")
         guess_k = int(n_clusters) if int(n_clusters) > 0 else None
         
-        # Estimate noise on the scaled, subsampled training data
         noise_sd = estimate_optimal_noise(
             adata_train, 
             n_clusters_guess=guess_k,
-            resolution=kwargs.get('resolution', 0.8) # Grab resolution from kwargs if it exists
+            resolution=kwargs.get('resolution', 0.8) 
         )
         print(f"Estimated optimal noise_sd: {noise_sd:.4f}")
-        
-        # Inject the estimated noise back into kwargs so the network and API use it
         kwargs['noise_sd'] = noise_sd
 
     # ========================================================
@@ -101,24 +113,31 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # ========================================================
     print(f"\n--- Phase 1: Global Pretraining ({adata_full.n_obs} cells) ---")
 
-    # Align architectures of the pretraining to force Phase 1 to match Phase 2's structure.
-    net_kwargs = kwargs.get('network_kwds', {}).copy()
-    
-    # Use user-provided hidden_size, otherwise fallback to the API default (256, 32, 256)
-    net_kwargs['hidden_size'] = kwargs.get('hidden_size', (256, 32, 256))
-    
-    # Pass any other structural arguments if provided in kwargs
-    for key in ['activation', 'batchnorm', 'hidden_dropout', 'input_dropout', 'init', 'mask_rate']:
-        if key in kwargs:
-            net_kwargs[key] = kwargs[key]
+    # Safely consolidate network arguments without overwriting
+    net_kwargs = {
+        'input_size': adata_full.shape[1],
+        'output_size': adata_full.shape[1],
+        'batch_size': kwargs.get('batch_size', 256),
+        'hidden_size': kwargs.get('hidden_size', (256, 32, 256)),
+        'hidden_dropout': kwargs.get('hidden_dropout', 0.05),
+        'mask_rate': kwargs.get('mask_rate', 0.0),
+        'batchnorm': kwargs.get('batchnorm', True),
+        'activation': kwargs.get('activation', 'relu'),
+        'init': kwargs.get('init', 'glorot_uniform'),
+        'debug': verbose_flag
+    }
+    # Append any user-provided network_kwds
+    net_kwargs.update(kwargs.get('network_kwds', {}))
     
     # Initialize the architecture
+    n_cl = int(n_clusters) if int(n_clusters) > 0 else 0
     network = network_options['dec'](
-        n_clusters=kwargs.get('n_clusters', 0),
-        noise_sd=kwargs['noise_sd'], # Explicitly pass the noise
+        n_clusters=n_cl,
+        noise_sd=kwargs['noise_sd'], 
         **net_kwargs
     )
-    network.build()
+    # Build the network and pass the batch dimension explicitly
+    network.build(n_batch=n_batch)
     
     # Temporarily point the network to the Autoencoder only for pretraining
     full_dec_model = network.model
@@ -133,7 +152,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
              early_stop=kwargs.get('early_stop', 30),
              use_raw_as_output=True,
              batch_size=kwargs.get('batch_size', 256),
-             verbose=kwargs.get('verbose', True)
+             verbose=verbose_flag
     )
              
     # Restore the full DEC model for subsequent clustering
@@ -153,11 +172,11 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     print(f"\n--- Phase 2: Topological Clustering ({adata_train.n_obs} cells) ---")
     network = scTopoDEC(
         adata_train, 
-        use_hvg=False,            # Data is already filtered to HVGs
-        normalize_per_cell=False, # Data is already normalized
-        scale=False,              # Data is already scaled
-        log1p=False,              # Data is already log-transformed
-        check_counts=False,       # Counts have already been checked
+        use_hvg=False,            
+        normalize_per_cell=False, 
+        scale=False,              
+        log1p=False,              
+        check_counts=False,       
         return_model=True, 
         copy=False, 
         **kwargs
