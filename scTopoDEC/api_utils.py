@@ -170,17 +170,26 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     # PHASE 2: DEC CLUSTERING ON SUBSAMPLED DATASET
     # ========================================================
     print(f"\n--- Phase 2: Topological Clustering ({adata_train.n_obs} cells) ---")
-    network = scTopoDEC(
-        adata_train, 
-        use_hvg=False,            
-        normalize_per_cell=False, 
-        scale=False,              
-        log1p=False,              
-        check_counts=False,       
-        return_model=True, 
-        copy=False, 
-        **kwargs
-    )
+    # Since normalization was already applied to the data in Phase 1, we force the API to skip this step entirely.
+    import scTopoDEC.io as stc_io
+    original_normalize = stc_io.normalize
+    stc_io.normalize = lambda x, **kw: x  # Dummy pass-through function
+    
+    try:
+        network = scTopoDEC(
+            adata_train, 
+            use_hvg=False,            
+            normalize_per_cell=False, 
+            scale=False,              
+            log1p=False,              
+            check_counts=False,       
+            return_model=True, 
+            copy=False, 
+            **kwargs
+        )
+    finally:
+        # Guarantee the original function is restored
+        stc_io.normalize = original_normalize
     
     # ========================================================
     # PHASE 3: PROJECT FULL DATASET
