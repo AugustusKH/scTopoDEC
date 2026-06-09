@@ -117,6 +117,9 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     pretrain(adata_full, 
              network, 
              epochs=kwargs.get('pretrain_epochs', 800),
+             learning_rate=kwargs.get('pretrain_learning_rate', 1e-3),
+             reduce_lr=kwargs.get('reduce_lr', 20),
+             early_stopping=kwargs.get('early_stop', 30),
              use_raw_as_output=True,
              batch_size=kwargs.get('batch_size', 256),
              verbose=kwargs.get('verbose', True))
