@@ -122,7 +122,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
              early_stopping=kwargs.get('early_stop', 30),
              use_raw_as_output=True,
              batch_size=kwargs.get('batch_size', 256),
-             verbose=kwargs.get('verbose', True))
+             verbose=kwargs.get('verbose', True)
+    )
              
     # Restore the full DEC model for subsequent clustering
     network.model = full_dec_model
