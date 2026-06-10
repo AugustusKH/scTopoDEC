@@ -77,9 +77,36 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
         print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
         if leiden_subsampling:
             sc.pp.neighbors(adata_full)
-            sc.tl.leiden(adata_full, resolution=leiden_resolution)
-            adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=max_cells, 
-                                          random_state=seed_val, copy=True)
+            # sc.tl.leiden(adata_full, resolution=leiden_resolution)
+            # adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=max_cells, 
+            #                               random_state=seed_val, copy=True)
+            
+            # Try the much faster igraph implementation first, fallback to standard if missing
+            try:
+                sc.tl.leiden(adata_full, resolution=leiden_resolution, flavor='igraph')
+            except Exception:
+                sc.tl.leiden(adata_full, resolution=leiden_resolution)
+            
+            # Manual Stratified Subsampling
+            frac = max_cells / adata_full.n_obs
+            sampled_indices = []
+            rs = np.random.RandomState(seed_val)
+            
+            for cluster_id in adata_full.obs['leiden'].cat.categories:
+                cluster_cells = adata_full.obs.index[adata_full.obs['leiden'] == cluster_id]
+                # Determine how many cells to take from this cluster
+                n_sample = max(1, int(np.round(len(cluster_cells) * frac)))
+                n_sample = min(n_sample, len(cluster_cells))
+                
+                sampled = rs.choice(cluster_cells, n_sample, replace=False)
+                sampled_indices.extend(sampled)
+            
+            # If rounding pushed slightly over max_cells, trim randomly
+            if len(sampled_indices) > max_cells:
+                sampled_indices = rs.choice(sampled_indices, max_cells, replace=False)
+                
+            adata_train = adata_full[sampled_indices].copy()
+
         else:
             adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
                                           random_state=seed_val, copy=True)
