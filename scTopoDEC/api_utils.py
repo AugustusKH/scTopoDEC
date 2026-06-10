@@ -9,7 +9,7 @@ from scTopoDEC.network import network_options
 from scTopoDEC.train import pretrain
 from scTopoDEC.utils import set_reproducibility, estimate_optimal_noise
 
-def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
+def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=True, leiden_resolution=0.5, **kwargs):
     """
     Wrapper for scTopoDEC to handle large single-cell datasets. 
     It pretrains the autoencoder on the full dataset for global manifold learning, 
