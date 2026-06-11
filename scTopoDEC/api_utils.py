@@ -9,7 +9,7 @@ from scTopoDEC.network import network_options
 from scTopoDEC.train import pretrain
 from scTopoDEC.utils import set_reproducibility, estimate_optimal_noise
 
-def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
+def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=None, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
     """
     Wrapper for scTopoDEC to handle large single-cell datasets. 
     It pretrains the autoencoder on the full dataset for global manifold learning, 
@@ -19,6 +19,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
     Args:
         adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
         max_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
+        initial_pretrain_weights (str or None): Path to pre-trained weights for the autoencoder. Defaults to None.
         leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
                                    to ensure diverse cell representation. Defaults to False.
         leiden_resolution (float): Resolution parameter for the Leiden clustering if 
@@ -177,6 +178,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, leiden_subsampling=False, le
              network, 
              epochs=kwargs.get('pretrain_epochs', 800),
              learning_rate=kwargs.get('pretrain_learning_rate', 1e-3),
+             initial_weights=initial_pretrain_weights,
              reduce_lr=kwargs.get('reduce_lr', 20),
              early_stop=kwargs.get('early_stop', 30),
              use_raw_as_output=True,
