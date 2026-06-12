@@ -173,31 +173,37 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
     network.model = network.zinb_ae 
 
     # Pretrain Autoencoder
-    start_pretrain = time.time()
-    pretrain(adata_full, 
-             network, 
-             epochs=kwargs.get('pretrain_epochs', 800),
-             learning_rate=kwargs.get('pretrain_learning_rate', 1e-3),
-             initial_weights=initial_pretrain_weights,
-             reduce_lr=kwargs.get('reduce_lr', 20),
-             early_stop=kwargs.get('early_stop', 30),
-             use_raw_as_output=True,
-             batch_size=kwargs.get('batch_size', 256),
-             verbose=verbose_flag
-    )
-    end_pretrain = time.time() 
-    print(f"Phase 1: Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
-             
-    # Restore the full DEC model for subsequent clustering
-    network.model = full_dec_model
-             
-    # Save global weights to bridge to the main clustering API
-    os.makedirs("stc_weights", exist_ok=True)
-    global_weights_path = "stc_weights/global_pretrain_weights.weights.h5"
-    network.save_weights(global_weights_path)
-    
-    # Instruct scTopoDEC to load these weights instead of pretraining again
-    kwargs['initial_pretrain_weights'] = global_weights_path
+    # Check if weights are provided and the file actually exists
+    if initial_pretrain_weights and os.path.exists(initial_pretrain_weights):
+        print(f"Loading existing pre-trained weights from {initial_pretrain_weights}...")
+        network.load_weights(initial_pretrain_weights)
+        kwargs['initial_pretrain_weights'] = initial_pretrain_weights  # Ensure the main model is set for subsequent DEC training
+        network.model = full_dec_model
+    else:
+        print("No pre-trained weights found. Starting fresh pre-training...")
+        start_pretrain = time.time()
+        pretrain(adata_full, 
+                 network, 
+                 epochs=kwargs.get('pretrain_epochs', 800),
+                 learning_rate=kwargs.get('pretrain_learning_rate', 1e-3),
+                 reduce_lr=kwargs.get('reduce_lr', 20),
+                 early_stop=kwargs.get('early_stop', 30),
+                 use_raw_as_output=True,
+                 batch_size=kwargs.get('batch_size', 256),
+                 verbose=verbose_flag
+        )
+        end_pretrain = time.time() 
+        print(f"Phase 1: Pretraining complete in {end_pretrain - start_pretrain:.2f} seconds.")
+                 
+        network.model = full_dec_model
+                 
+        # Save global weights to bridge to the main clustering API
+        os.makedirs("stc_weights", exist_ok=True)
+        global_weights_path = "stc_weights/global_pretrain_weights.weights.h5"
+        network.save_weights(global_weights_path)
+        
+        # Instruct Phase 2 to use these newly generated weights
+        kwargs['initial_pretrain_weights'] = global_weights_path
 
     # ========================================================
     # PHASE 2: DEC CLUSTERING ON SUBSAMPLED DATASET
@@ -217,7 +223,6 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
         start_train = time.time()
         network = scTopoDEC(
             adata_train, 
-            noise_sd=noise_sd,
             use_hvg=False,            
             normalize_per_cell=False, 
             scale=False,              
