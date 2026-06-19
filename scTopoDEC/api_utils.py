@@ -9,7 +9,7 @@ from scTopoDEC.network import network_options
 from scTopoDEC.train import pretrain
 from scTopoDEC.utils import set_reproducibility, estimate_optimal_noise
 
-def run_scTopoDEC_large_data(adata, sampling_threshold=None, sampling_cells=2000, initial_pretrain_weights=None, leiden_subsampling=False, 
+def run_scTopoDEC_large_data(adata, sampling_threshold=10000, sampling_cells=2000, initial_pretrain_weights=None, leiden_subsampling=False, 
                              leiden_resolution=0.5, **kwargs):
     """
     Wrapper for scTopoDEC to handle large single-cell datasets. 
@@ -19,7 +19,7 @@ def run_scTopoDEC_large_data(adata, sampling_threshold=None, sampling_cells=2000
 
     Args:
         adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
-        sampling_threshold (int): The threshold for sampling cells. The sampling is done based on this threshold. Defaults to None.
+        sampling_threshold (int): The threshold for sampling cells. The sampling is done based on this threshold. Defaults to 10000.
         sampling_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
         initial_pretrain_weights (str or None): Path to pre-trained weights for the autoencoder. Defaults to None.
         leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
