@@ -9,7 +9,8 @@ from scTopoDEC.network import network_options
 from scTopoDEC.train import pretrain
 from scTopoDEC.utils import set_reproducibility, estimate_optimal_noise
 
-def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=None, leiden_subsampling=False, leiden_resolution=0.5, **kwargs):
+def run_scTopoDEC_large_data(adata, sampling_threshold=None, sampling_cells=2000, initial_pretrain_weights=None, leiden_subsampling=False, 
+                             leiden_resolution=0.5, **kwargs):
     """
     Wrapper for scTopoDEC to handle large single-cell datasets. 
     It pretrains the autoencoder on the full dataset for global manifold learning, 
@@ -18,7 +19,8 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
 
     Args:
         adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
-        max_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
+        sampling_threshold (int): The threshold for sampling cells. The sampling is done based on this threshold. Defaults to None.
+        sampling_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
         initial_pretrain_weights (str or None): Path to pre-trained weights for the autoencoder. Defaults to None.
         leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
                                    to ensure diverse cell representation. Defaults to False.
@@ -74,12 +76,12 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
         print(f"Batch correction enabled: {n_batch} batches detected.")
 
     # Subsampling (adata_train will now safely inherit the batch_onehot matrix)
-    if adata_full.n_obs > max_cells:
-        print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {max_cells}...")
+    if sampling_threshold is not None and adata_full.n_obs > sampling_threshold:
+        print(f"Dataset has {adata_full.n_obs} cells. Subsampling to {sampling_cells}...")
         if leiden_subsampling:
             sc.pp.neighbors(adata_full)
             # sc.tl.leiden(adata_full, resolution=leiden_resolution)
-            # adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=max_cells, 
+            # adata_train = sc.pp.subsample(adata_full, groupby='leiden', n_obs=sampling_cells, 
             #                               random_state=seed_val, copy=True)
             
             # Try the much faster igraph implementation first, fallback to standard if missing
@@ -89,7 +91,7 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
                 sc.tl.leiden(adata_full, resolution=leiden_resolution)
             
             # Manual Stratified Subsampling
-            frac = max_cells / adata_full.n_obs
+            frac = sampling_cells / adata_full.n_obs
             sampled_indices = []
             rs = np.random.RandomState(seed_val)
             
@@ -102,14 +104,14 @@ def run_scTopoDEC_large_data(adata, max_cells=2000, initial_pretrain_weights=Non
                 sampled = rs.choice(cluster_cells, n_sample, replace=False)
                 sampled_indices.extend(sampled)
             
-            # If rounding pushed slightly over max_cells, trim randomly
-            if len(sampled_indices) > max_cells:
-                sampled_indices = rs.choice(sampled_indices, max_cells, replace=False)
+            # If rounding pushed slightly over sampling_cells, trim randomly
+            if len(sampled_indices) > sampling_cells:
+                sampled_indices = rs.choice(sampled_indices, sampling_cells, replace=False)
                 
             adata_train = adata_full[sampled_indices].copy()
 
         else:
-            adata_train = sc.pp.subsample(adata_full, n_obs=max_cells, 
+            adata_train = sc.pp.subsample(adata_full, n_obs=sampling_cells, 
                                           random_state=seed_val, copy=True)
     else:
         adata_train = adata_full.copy()
