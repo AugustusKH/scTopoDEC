@@ -39,7 +39,7 @@ def train_step(x_counts, x_sf, x_batch, y_p, y_raw, network, model, clustering_l
         if x_batch is not None:
             inputs['batch'] = x_batch
 
-        z = network.encoder(inputs)
+        z = network.encoder(inputs, training=False)
         q, zinb_out = model(inputs)
         mu = clustering_layer.weights[0] 
         

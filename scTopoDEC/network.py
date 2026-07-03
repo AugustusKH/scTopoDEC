@@ -211,9 +211,14 @@ class Autoencoder():
         else:
             target = 'latent'
             
-        return models.Model(inputs=self.model.input, 
-                     outputs=self.model.get_layer(target).output,
-                     name='encoder')
+        try:
+            return models.Model(inputs=self.model.input, 
+                         outputs=self.model.get_layer(target).output,
+                         name='encoder')
+        except ValueError:
+            return models.Model(inputs=self.model.input, 
+                         outputs=self.model.get_layer('latent').output,
+                         name='encoder')
 
 
     def get_decoder(self, activation=False, dropout=False):
@@ -432,36 +437,36 @@ class DEC(ZINBAutoencoder):
         self.encoder = self.get_encoder()
 
 
-    def get_encoder(self):
-        """
-        Deterministic encoder for DEC phase. 
-        Accepts both inputs to maintain compatibility with train_step, 
-        but only processes counts through a noise-free path.
-        """
-        hidden = self.input_layer
+    # def get_encoder(self):
+    #     """
+    #     Deterministic encoder for DEC phase. 
+    #     Accepts both inputs to maintain compatibility with train_step, 
+    #     but only processes counts through a noise-free path.
+    #     """
+    #     hidden = self.input_layer
         
-        # Extract true layers
-        found_latent = False
-        for layer in self.model.layers:
-            # Skip noise, dropout, and any input layers
-            if isinstance(layer, (layers.InputLayer, layers.GaussianNoise, layers.Dropout)):
-                continue
+    #     # Extract true layers
+    #     found_latent = False
+    #     for layer in self.model.layers:
+    #         # Skip noise, dropout, and any input layers
+    #         if isinstance(layer, (layers.InputLayer, layers.GaussianNoise, layers.Dropout)):
+    #             continue
             
-            # Skip the size factor input layer
-            if 'size_factors' in layer.name:
-                continue
+    #         # Skip the size factor input layer
+    #         if 'size_factors' in layer.name:
+    #             continue
 
-            hidden = layer(hidden)
+    #         hidden = layer(hidden)
             
-            # Stop immediately after we get the bottle neck layer
-            if layer.name == 'latent' or layer.name == 'latent_act':
-                found_latent = True
-                break
+    #         # Stop immediately after we get the bottle neck layer
+    #         if layer.name == 'latent' or layer.name == 'latent_act':
+    #             found_latent = True
+    #             break
 
-        if not found_latent:
-            print("Warning: Latent layer not found during encoder extraction.")
+    #     if not found_latent:
+    #         print("Warning: Latent layer not found during encoder extraction.")
         
-        return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
+    #     return models.Model(inputs=self.model.input, outputs=hidden, name='encoder')
     
 
     def get_initial_clusters(self, adata, n_neighbors=15, resolution=1.):
