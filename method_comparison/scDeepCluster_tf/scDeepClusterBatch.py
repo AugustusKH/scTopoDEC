@@ -146,7 +146,7 @@ class ClusteringLayer(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class SCDeepCluster(object):
+class SCDeepClusterBatch(object):
     def __init__(self, dims, n_batch, n_clusters=10, noise_sd=0, alpha=1.0, ridge=0, debug=False):
         super(SCDeepCluster, self).__init__()
         self.dims = dims
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     print(args)
 
     # Define scDeepCluster model with n_batch integrated
-    scDeepCluster = SCDeepCluster(dims=[input_size, 256, 64, 32], n_batch=n_batch, n_clusters=args.n_clusters, noise_sd=2.5)
+    scDeepCluster = SCDeepClusterBatch(dims=[input_size, 256, 64, 32], n_batch=n_batch, n_clusters=args.n_clusters, noise_sd=2.5)
     plot_model(scDeepCluster.model, to_file='scDeepCluster_model.png', show_shapes=True)
     print("autocoder summary")
     scDeepCluster.autoencoder.summary()
