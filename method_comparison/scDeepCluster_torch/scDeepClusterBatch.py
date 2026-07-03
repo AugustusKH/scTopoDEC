@@ -181,7 +181,6 @@ class scDeepClusterBatch(nn.Module):
             self.y_pred_last = self.y_pred
 
         if y is not None:
-#            acc = np.round(cluster_acc(y, self.y_pred), 5)
             nmi = np.round(metrics.normalized_mutual_info_score(y, self.y_pred), 5)
             ari = np.round(metrics.adjusted_rand_score(y, self.y_pred), 5)
             print('Initializing k-means: NMI= %.4f, ARI= %.4f' % (nmi, ari))
@@ -192,19 +191,17 @@ class scDeepClusterBatch(nn.Module):
         final_acc, final_nmi, final_ari, final_epoch = 0, 0, 0, 0
         delta_label = 1.0 # Initialize safely
 
-
         for epoch in range(num_epochs):
             if epoch%update_interval == 0:
-                # update the targe distribution p
+                # update the target distribution p
                 latent = self.encodeBatch(X.to(self.device), B.to(self.device))
                 q = self.soft_assign(latent)
                 p = self.target_distribution(q).data
 
-                # evalute the clustering performance
+                # evaluate the clustering performance
                 self.y_pred = torch.argmax(q, dim=1).data.cpu().numpy()
 
                 if y is not None:
-#                    final_acc = acc = np.round(cluster_acc(y, self.y_pred), 5)
                     final_nmi = nmi = np.round(metrics.normalized_mutual_info_score(y, self.y_pred), 5)
                     final_epoch = ari = np.round(metrics.adjusted_rand_score(y, self.y_pred), 5)
                     print('Clustering   %d: NMI= %.4f, ARI= %.4f' % (epoch+1, nmi, ari))
@@ -228,7 +225,6 @@ class scDeepClusterBatch(nn.Module):
                     print("Reach tolerance threshold. Stopping training.")
                     break
 
-
             # train 1 epoch for clustering loss
             train_loss = 0.0
             recon_loss_val = 0.0
@@ -243,11 +239,12 @@ class scDeepClusterBatch(nn.Module):
                 
                 optimizer.zero_grad()
                 
-                inputs = Variable(xbatch).to(self.device)
-                binputs = Variable(bbatch).to(self.device)
-                rawinputs = Variable(xrawbatch).to(self.device)
-                sfinputs = Variable(sfbatch).to(self.device)
-                target = Variable(pbatch).to(self.device)
+                # FIX: Removed the deprecated Variable class and directly passed tensors
+                inputs = xbatch.to(self.device)
+                binputs = bbatch.to(self.device)
+                rawinputs = xrawbatch.to(self.device)
+                sfinputs = sfbatch.to(self.device)
+                target = pbatch.to(self.device)
 
                 zbatch, qbatch, meanbatch, dispbatch, pibatch = self.forward(inputs, binputs)
 
