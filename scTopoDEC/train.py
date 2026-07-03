@@ -83,6 +83,40 @@ def train_step(x_counts, x_sf, x_batch, y_p, y_raw, network, model, clustering_l
 
 
 # ==============================================================================
+# Clustering prediction
+# ==============================================================================
+
+def _safe_predict(adata, keras_model, batch_size, return_multiple=False):
+    """Safely chunks predictions to prevent sparse-matrix OOM and injects batch covariates."""
+    num_cells = adata.n_obs
+    out1 = []
+    out2 = []
+    for start_idx in range(0, num_cells, batch_size):
+        end_idx = min(start_idx + batch_size, num_cells)
+        batch_x = adata.X[start_idx:end_idx]
+        if sp.sparse.issparse(batch_x):
+            batch_x = batch_x.toarray()
+        
+        inputs = {
+            'count': batch_x, 
+            'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
+        }
+        if 'batch_onehot' in adata.obsm:
+            inputs['batch'] = adata.obsm['batch_onehot'][start_idx:end_idx]
+            
+        pred = keras_model.predict(inputs, verbose=0)
+        if return_multiple:
+            out1.append(pred[0])
+            out2.append(pred[1])
+        else:
+            out1.append(pred)
+            
+    if return_multiple:
+        return np.concatenate(out1, axis=0), np.concatenate(out2, axis=0)
+    return np.concatenate(out1, axis=0)
+
+
+# ==============================================================================
 # Pretraining (ZINB-autoencoder)
 # ==============================================================================
 
@@ -262,15 +296,17 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
         network.init_clustering_layer(n_clusters=n_detected, weights=initial_centroids)
         model = network.model
         kmeans = KMeans(n_clusters=n_detected, n_init=20, random_state=random_state)
-        latent_feat = network.encoder.predict({'count': adata.X, 
-                                               'size_factors': adata.obs.size_factors.values})
+        # latent_feat = network.encoder.predict({'count': adata.X, 
+        #                                        'size_factors': adata.obs.size_factors.values})
+        latent_feat = _safe_predict(adata, network.encoder, batch_size)
         y_pred = kmeans.fit_predict(latent_feat)
         model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
     else:
         print("\n...n_clusters is not 0: Initializing cluster centers with k-means...")
         kmeans = KMeans(n_clusters=network.n_clusters, n_init=20, random_state=random_state)
-        latent_feat = network.encoder.predict({'count': adata.X, 
-                                               'size_factors': adata.obs.size_factors.values})
+        # latent_feat = network.encoder.predict({'count': adata.X, 
+        #                                        'size_factors': adata.obs.size_factors.values})
+        latent_feat = _safe_predict(adata, network.encoder, batch_size)
         y_pred = kmeans.fit_predict(latent_feat)
         model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
 
@@ -317,11 +353,12 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 
     for epoch in tqdm(range(epochs), desc="Training DEC", unit="epoch"):
         if epoch % update_interval == 0:
-            inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
-            if 'batch_onehot' in adata.obsm:
-                inputs_eval['batch'] = adata.obsm['batch_onehot']
+            # inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
+            # if 'batch_onehot' in adata.obsm:
+            #     inputs_eval['batch'] = adata.obsm['batch_onehot']
 
-            q, _ = model.predict(inputs_eval, verbose=0)
+            # q, _ = model.predict(inputs_eval, verbose=0)
+            q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
             p = compute_target_distribution(q)
             y_pred = q.argmax(1)
 
@@ -474,7 +511,8 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
     print(f"Total Clustering Training complete in {end_total_train - start_total_train:.2f} seconds.")
 
     # Cluster prediction based on the best weight
-    q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    # q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
     y_pred = q.argmax(1)
 
     return y_pred
@@ -529,15 +567,17 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         print(f"Predicted number of clusters: {n_detected}")
         network.init_clustering_layer(n_clusters=n_detected, weights=initial_centroids)
         kmeans = KMeans(n_clusters=n_detected, n_init=20, random_state=random_state)
-        latent_feat = network.encoder.predict({'count': adata.X, 
-                                               'size_factors': adata.obs.size_factors.values})
+        # latent_feat = network.encoder.predict({'count': adata.X, 
+        #                                        'size_factors': adata.obs.size_factors.values})
+        latent_feat = _safe_predict(adata, network.encoder, batch_size)
         y_pred = kmeans.fit_predict(latent_feat)
         model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
     else:
         print("\n...n_clusters is not 0: Initializing cluster centers with k-means...")
         kmeans = KMeans(n_clusters=network.n_clusters, n_init=20, random_state=random_state)
-        latent_feat = network.encoder.predict({'count': adata.X, 
-                                               'size_factors': adata.obs.size_factors.values})
+        # latent_feat = network.encoder.predict({'count': adata.X, 
+        #                                        'size_factors': adata.obs.size_factors.values})
+        latent_feat = _safe_predict(adata, network.encoder, batch_size)
         y_pred = kmeans.fit_predict(latent_feat)
         model.get_layer(name='clustering').set_weights([kmeans.cluster_centers_])
 
@@ -601,11 +641,12 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         pbar = tqdm(range(epochs_per_phase), desc=f"Res {current_res}", unit="epoch")
         for epoch in pbar: 
             if epoch % update_interval == 0:
-                inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
-                if 'batch_onehot' in adata.obsm:
-                    inputs_eval['batch'] = adata.obsm['batch_onehot']
+                # inputs_eval = {'count': adata.X, 'size_factors': adata.obs.size_factors.values}
+                # if 'batch_onehot' in adata.obsm:
+                #     inputs_eval['batch'] = adata.obsm['batch_onehot']
 
-                q, _ = model.predict(inputs_eval, verbose=0)
+                # q, _ = model.predict(inputs_eval, verbose=0)
+                q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
                 p = compute_target_distribution(q)
                 y_pred = q.argmax(1)
 
@@ -725,7 +766,8 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
     print(f"Ramp Training complete in {time.time() - start_total_train:.2f}s")
 
     # Cluster prediction based on the best weight
-    q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    # q, _ = model.predict({'count': adata.X, 'size_factors': adata.obs.size_factors.values}, verbose=0)
+    q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
     y_pred = q.argmax(1)
     
     return y_pred
