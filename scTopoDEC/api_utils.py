@@ -19,7 +19,7 @@ def run_scTopoDEC_large_data(adata, sampling_threshold=10000, sampling_cells=200
 
     Args:
         adata (AnnData): The full raw single-cell dataset (expected to be an AnnData object).
-        sampling_threshold (int): The threshold for sampling cells. The sampling is done based on this threshold. Defaults to 10000.
+        sampling_threshold (int): The threshold for sampling cells. The sampling is done based on this threshold. Defaults to None.
         sampling_cells (int): The number of cells to subsample for DEC model training. Defaults to 2000.
         initial_pretrain_weights (str or None): Path to pre-trained weights for the autoencoder. Defaults to None.
         leiden_subsampling (bool): If True, performs stratified subsampling using Leiden clusters 
@@ -149,6 +149,7 @@ def run_scTopoDEC_large_data(adata, sampling_threshold=10000, sampling_cells=200
         'input_size': adata_full.shape[1],
         'output_size': adata_full.shape[1],
         'batch_size': kwargs.get('batch_size', 256),
+        'n_batch': n_batch,
         'hidden_size': kwargs.get('hidden_size', (256, 32, 256)),
         'hidden_dropout': kwargs.get('hidden_dropout', 0.05),
         'mask_rate': kwargs.get('mask_rate', 0.0),
