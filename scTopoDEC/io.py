@@ -40,6 +40,64 @@ class AnnSequence(Sequence):
 
         # return an (X, Y) pair
         return {'count': batch, 'size_factors': batch_sf}, batch
+    
+
+class SparseDataGenerator(Sequence):
+    """Keras Sequence generator for large sparse data."""
+    def __init__(self, adata, indices, batch_size, use_raw_as_output=True, output_subset=None):
+        self.adata = adata
+        self.indices = indices
+        self.batch_size = batch_size
+        self.use_raw_as_output = use_raw_as_output
+        self.output_subset = output_subset
+        self.has_batch = 'batch_onehot' in adata.obsm
+
+        if self.output_subset:
+            self.gene_idx = [self.adata.var_names.get_loc(x) for x in self.output_subset]
+        else:
+            self.gene_idx = None
+        
+        self.on_epoch_end()
+
+    def __len__(self):
+        return int(np.ceil(len(self.indices) / self.batch_size))
+
+    def __getitem__(self, index):
+        batch_indices = self.indices[index * self.batch_size:(index + 1) * self.batch_size]
+
+        # Input Count Matrix
+        raw_batch_x = self.adata.X[batch_indices]
+        if sp.sparse.issparse(raw_batch_x):
+            raw_batch_x = raw_batch_x.toarray()
+        x_c = raw_batch_x.astype(np.float32)
+
+        # Size Factors
+        x_s = self.adata.obs.size_factors.values[batch_indices].astype(np.float32)
+
+        inputs = {'count': x_c, 'size_factors': x_s}
+
+        # Batch Covariates
+        if self.has_batch:
+            inputs['batch'] = self.adata.obsm['batch_onehot'][batch_indices].astype(np.float32)
+
+        # Target Matrix
+        if self.use_raw_as_output:
+            raw_batch_y = self.adata.raw.X[batch_indices]
+        else:
+            raw_batch_y = self.adata.X[batch_indices]
+
+        if self.output_subset:
+            raw_batch_y = raw_batch_y[:, self.gene_idx]
+
+        if sp.sparse.issparse(raw_batch_y):
+            raw_batch_y = raw_batch_y.toarray()
+            
+        target = raw_batch_y.astype(np.float32)
+
+        return inputs, target
+
+    def on_epoch_end(self):
+        np.random.shuffle(self.indices)
 
 
 def is_raw_counts(matrix):

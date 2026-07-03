@@ -72,9 +72,8 @@ class Autoencoder():
 
         if n_batch > 0:
             self.batch_layer = layers.Input(shape=(n_batch,), name='batch')
-            last_hidden = layers.Concatenate()([x, self.batch_layer])
-        else:
-            last_hidden = x
+
+        last_hidden = x
 
         if self.noise_sd > 0.0:
             last_hidden = layers.GaussianNoise(self.noise_sd, name='input_noise')(last_hidden)
@@ -84,10 +83,6 @@ class Autoencoder():
 
         for i, (hid_size, hid_drop) in enumerate(zip(self.hidden_size, self.hidden_dropout)):
             center_idx = int(np.floor(len(self.hidden_size) / 2.0))
-            
-            # Inject batch into decoder input (latent space)
-            if i == center_idx + 1 and n_batch > 0:
-                last_hidden = layers.Concatenate()([last_hidden, self.batch_layer])
 
             if i == center_idx:
                 layer_name, stage = 'latent', 'latent'
@@ -100,11 +95,21 @@ class Autoencoder():
             l1 = self.l1_enc_coef if (self.l1_enc_coef != 0 and stage in ('latent', 'encoder')) else self.l1_coef
             l2 = self.l2_enc_coef if (self.l2_enc_coef != 0 and stage in ('latent', 'encoder')) else self.l2_coef
 
-            last_hidden = layers.Dense(
-                hid_size, activation=None, kernel_initializer=self.init,
-                kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2),
-                name=layer_name
-            )(last_hidden)
+            # Inject batch covariates additively
+            if i == 0 and n_batch > 0:
+                dense_counts = layers.Dense(hid_size, activation=None, kernel_initializer=self.init, kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2), name=layer_name+'_counts')(last_hidden)
+                dense_batch = layers.Dense(hid_size, activation=None, use_bias=False, kernel_initializer=self.init, name=layer_name+'_batch')(self.batch_layer)
+                last_hidden = layers.Add(name=layer_name)([dense_counts, dense_batch])
+            elif i == center_idx + 1 and n_batch > 0:
+                dense_latent = layers.Dense(hid_size, activation=None, kernel_initializer=self.init, kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2), name=layer_name+'_latent')(last_hidden)
+                dense_batch = layers.Dense(hid_size, activation=None, use_bias=False, kernel_initializer=self.init, name=layer_name+'_batch')(self.batch_layer)
+                last_hidden = layers.Add(name=layer_name)([dense_latent, dense_batch])
+            else:
+                last_hidden = layers.Dense(
+                    hid_size, activation=None, kernel_initializer=self.init,
+                    kernel_regularizer=regularizers.L1L2(l1=l1, l2=l2),
+                    name=layer_name
+                )(last_hidden)
 
             if self.noise_sd > 0.0 and stage == 'encoder':
                 last_hidden = layers.GaussianNoise(self.noise_sd, name='%s_noise' % layer_name)(last_hidden)

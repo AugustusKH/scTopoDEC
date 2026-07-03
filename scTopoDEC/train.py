@@ -10,6 +10,7 @@ from sklearn.cluster import KMeans
 from sklearn import metrics
 
 from . import io
+from .io import SparseDataGenerator
 from .utils import compute_target_distribution, get_topo_representation
 from .network import network_options
 from .layers import RipsLayer
@@ -89,7 +90,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
              initial_weights=None, epochs=200, reduce_lr=10, output_subset=None, 
              use_raw_as_output=True, early_stop=15, batch_size=256, clip_grad=1.0, 
              save_weights=False, validation_split=0.1, tensorboard=False, verbose=True, 
-             **kwds):
+             use_generator=False, **kwds):
    
     model = network.model
     loss_fn = network.loss
@@ -135,36 +136,70 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
     if verbose:
         model.summary()
 
-    inputs = {
-        'count': tf.cast(adata.X.toarray() if sp.sparse.issparse(adata.X) else adata.X, tf.float32), 
-        'size_factors': adata.obs.size_factors.values
-    }
+    if use_generator:
+        # Memory-safe data generators for large datasets
+        n_obs = adata.n_obs
+        n_val = int(n_obs * validation_split)
+        n_train = n_obs - n_val
+        
+        indices = np.random.permutation(n_obs)
+        train_idx = indices[:n_train]
+        val_idx = indices[n_train:]
 
-    # Add batch to inputs if it exists
-    if 'batch_onehot' in adata.obsm:
-        inputs['batch'] = adata.obsm['batch_onehot']
+        train_gen = SparseDataGenerator(
+            adata, train_idx, batch_size, 
+            use_raw_as_output=use_raw_as_output, 
+            output_subset=output_subset
+        )
+        
+        val_gen = None
+        if n_val > 0:
+            val_gen = SparseDataGenerator(
+                adata, val_idx, batch_size, 
+                use_raw_as_output=use_raw_as_output, 
+                output_subset=output_subset
+            )
 
-    if output_subset:
-        gene_idx = [adata.var_names.get_loc(x) for x in output_subset]
-        target = adata.raw.X[:, gene_idx] if use_raw_as_output else adata.X[:, gene_idx]
+        history = model.fit(
+            train_gen,
+            validation_data=val_gen,
+            epochs=epochs,
+            callbacks=callbacks,
+            verbose=verbose,
+            **kwds
+        )
     else:
-        target = adata.raw.X if use_raw_as_output else adata.X
+        # Original exact-reproduction dense logic
+        inputs = {
+            'count': tf.cast(adata.X.toarray() if sp.sparse.issparse(adata.X) else adata.X, tf.float32), 
+            'size_factors': adata.obs.size_factors.values
+        }
 
-    # If batch targets are sparse matrices, convert them to dense matrix
-    if sp.sparse.issparse(target):
-        target = target.toarray()
+        # Add batch to inputs if it exists
+        if 'batch_onehot' in adata.obsm:
+            inputs['batch'] = adata.obsm['batch_onehot']
 
-    history = model.fit(
-        inputs, 
-        target,
-        epochs=epochs,
-        batch_size=batch_size,
-        shuffle=True,
-        callbacks=callbacks,
-        validation_split=validation_split,
-        verbose=verbose,
-        **kwds
-    )
+        if output_subset:
+            gene_idx = [adata.var_names.get_loc(x) for x in output_subset]
+            target = adata.raw.X[:, gene_idx] if use_raw_as_output else adata.X[:, gene_idx]
+        else:
+            target = adata.raw.X if use_raw_as_output else adata.X
+
+        # If batch targets are sparse matrices, convert them to dense matrix
+        if sp.sparse.issparse(target):
+            target = target.toarray()
+
+        history = model.fit(
+            inputs, 
+            target,
+            epochs=epochs,
+            batch_size=batch_size,
+            shuffle=True,
+            callbacks=callbacks,
+            validation_split=validation_split,
+            verbose=verbose,
+            **kwds
+        )
 
     return history
 
@@ -211,7 +246,8 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
                 epochs=pretrain_epochs,
                 optimizer=pretrain_optimizer,
                 learning_rate=pretrain_learning_rate,
-                verbose=verbose)
+                verbose=verbose,
+                use_generator=kwds.get('use_generator', False))
         
     network.model = model
     end_pretrain = time.time() 
@@ -479,7 +515,8 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
                 epochs=pretrain_epochs,
                 optimizer=pretrain_optimizer,
                 learning_rate=pretrain_learning_rate,
-                verbose=verbose)
+                verbose=verbose,
+                use_generator=kwds.get('use_generator', False))
         
     network.model = model
     print(f"Pretraining complete in {time.time() - start_pretrain:.2f}s")

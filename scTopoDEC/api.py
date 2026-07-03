@@ -447,7 +447,7 @@ def scTopoDEC(adata,                              # single-cell args
         model_kwargs['alpha'] = alpha
 
     network = network_options[ae_type](**model_kwargs)
-    network.build()
+    network.build(n_batch=n_batch)
 
     # 7. Execution Logic
     if ae_type == 'dec':
