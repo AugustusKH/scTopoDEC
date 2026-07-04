@@ -497,6 +497,10 @@ class DEC(ZINBAutoencoder):
                 'count': batch_x, 
                 'size_factors': adata.obs.size_factors.values[start_idx:end_idx]
             }
+
+            if 'batch_onehot' in adata.obsm:
+                inputs['batch'] = adata.obsm['batch_onehot'][start_idx:end_idx]
+                
             latent_list.append(self.encoder.predict(inputs, verbose=0))
             
         z = np.concatenate(latent_list, axis=0)
