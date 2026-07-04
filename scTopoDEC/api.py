@@ -48,7 +48,7 @@ def scTopoDEC(adata,                              # single-cell args
               scale=True,
               log1p=True,
               hidden_size=(256, 32, 256),         # network args
-              loss_weights=(1.0, 10.0, 0.1, 2.0),
+              loss_weights=(1.0, 10.0, 0.1, 1.0),
               noise_sd=0.4,
               hidden_dropout=0.05,
               mask_rate=0.0,
