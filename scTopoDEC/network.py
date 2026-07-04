@@ -500,7 +500,7 @@ class DEC(ZINBAutoencoder):
 
             if 'batch_onehot' in adata.obsm:
                 inputs['batch'] = adata.obsm['batch_onehot'][start_idx:end_idx]
-                
+
             latent_list.append(self.encoder.predict(inputs, verbose=0))
             
         z = np.concatenate(latent_list, axis=0)
@@ -521,7 +521,8 @@ class DEC(ZINBAutoencoder):
         """Dynamically re-initializes the clustering layer with detected centroids."""
         self.n_clusters = n_clusters
         # Rebuild the model with the new number of clusters
-        self.build_output() 
+        n_batch = self.batch_layer.shape[1] if hasattr(self, 'batch_layer') else 0
+        self.build_output(n_batch=n_batch) 
         # Set the centroids found by Leiden
         self.model.get_layer(name='clustering').set_weights([weights])
     
