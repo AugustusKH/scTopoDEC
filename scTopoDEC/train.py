@@ -245,7 +245,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, random_state=0, 
           train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
           save_train_interval=5, optimizer='adam', learning_rate=0.01, epochs=300, 
-          update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), 
+          update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), gamma=1.0,
           soft_kmean=True, use_raw_as_output=True, verbose=True, ground_truth=None, 
           pretrain_output_dir=None, initial_pretrain_weights=None, save_pretrain_weights=False, 
           pretrain_epochs=200, pretrain_optimizer='adam', pretrain_learning_rate=0.01, 
@@ -359,7 +359,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 
             # q, _ = model.predict(inputs_eval, verbose=0)
             q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
-            p = compute_target_distribution(q)
+            p = compute_target_distribution(q, gamma=gamma)
             y_pred = q.argmax(1)
 
             # # If ARI starts dropping, re-align centers to the manifold
@@ -521,7 +521,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
 def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, random_state=0, train_output_dir=None, 
                initial_train_weights=None, save_train_weights=True, save_train_interval=5, optimizer='adam', 
                learning_rate=0.001, epochs=300, update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), 
-               soft_kmean=True, use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_output_dir=None, 
+               gamma=1.0, soft_kmean=True, use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_output_dir=None, 
                initial_pretrain_weights=None, save_pretrain_weights=False, pretrain_epochs=200, pretrain_optimizer='adam', 
                pretrain_learning_rate=0.01, res_ramp=(0.0, 0.1, 0.2, 0.5, 1.0), early_stop_patience=15, cluster_early_stop=False, 
                homology_dim=1, maximum_edge_length=2., topo_size=64, pg_dist='wd', order=1., topo_input_mode='pca', 
@@ -648,7 +648,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
 
                 # q, _ = model.predict(inputs_eval, verbose=0)
                 q, _ = _safe_predict(adata, model, batch_size, return_multiple=True)
-                p = compute_target_distribution(q)
+                p = compute_target_distribution(q, gamma=gamma)
                 y_pred = q.argmax(1)
 
                 # --- Evaluation block ---

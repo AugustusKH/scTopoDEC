@@ -118,13 +118,17 @@ def estimate_optimal_noise(adata,
     return round(float(noise_sd), 4)
 
 
-def compute_target_distribution(q):
+def compute_target_distribution(q, gamma=1.0):
     """
     Compute the target distribution p from soft labels q.
     p is designed to sharpen the clusters and emphasize high-confidence assignments.
+
+    A gamma parameter (default 1.0) applies frequency smoothing to the denominator,
+    preventing the mathematical collapse of small clusters during DEC optimization.
     """
     q = np.clip(q, 1e-10, 1.0)
-    weight = ops.power(q, 2) / (ops.sum(q, axis=0) + 1e-10) # Add 1e-8 to avoid division by zero 
+    f_j = ops.sum(q, axis=0) + 1e-10
+    weight = ops.power(q, 2) / ops.power(f_j, gamma) # Add 1e-8 to avoid division by zero 
     p = weight / (ops.sum(weight, axis=1, keepdims=True) + 1e-10)
     return np.nan_to_num(p)
 

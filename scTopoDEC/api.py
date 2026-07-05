@@ -44,6 +44,7 @@ def scTopoDEC(adata,                              # single-cell args
               use_hvg=True,         
               n_top_genes=2000,      
               alpha=2.,
+              gamma=1.0,
               normalize_per_cell=True,
               scale=True,
               log1p=True,
@@ -155,6 +156,9 @@ def scTopoDEC(adata,                              # single-cell args
         alpha : `float`, optional (default: 2.0)
             Degrees of freedom for Student’s t-distribution in the clustering layer. 
             Must be positive to calculate soft assignments (q).
+        gamma : `float`, optional (default: 1.0)
+            The frequency smoothing exponent used for the target distribution p.
+            Must be in the range [0,1].
         normalize_per_cell : `bool`, optional (default: True)
             If True, library size normalization is performed and saved as size factors. 
             The decoder re-introduces these factors to scale the output mean layer.
@@ -465,6 +469,7 @@ def scTopoDEC(adata,                              # single-cell args
                        early_stop_patience=early_stop,
                        cluster_early_stop=cluster_early_stop,
                        soft_kmean=soft_kmean,
+                       gamma=gamma,
                        ground_truth=ground_truth,
                        res_ramp=res_ramp,
                        pretrain_epochs=pretrain_epochs,
@@ -500,6 +505,7 @@ def scTopoDEC(adata,                              # single-cell args
                   early_stop_patience=early_stop,
                   cluster_early_stop=cluster_early_stop,
                   soft_kmean=soft_kmean,
+                  gamma=gamma,
                   homology_dim=homology_dim, 
                   maximum_edge_length=maximum_edge_length,
                   ground_truth=ground_truth,
