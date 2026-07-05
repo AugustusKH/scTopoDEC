@@ -566,6 +566,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         n_detected = len(initial_centroids)
         print(f"Predicted number of clusters: {n_detected}")
         network.init_clustering_layer(n_clusters=n_detected, weights=initial_centroids)
+        model = network.model
         kmeans = KMeans(n_clusters=n_detected, n_init=20, random_state=random_state)
         # latent_feat = network.encoder.predict({'count': adata.X, 
         #                                        'size_factors': adata.obs.size_factors.values})
