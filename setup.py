@@ -17,10 +17,12 @@ setup(
         'scikit-learn',
         'h5py',      
         'anndata',   
+        'optuna',     
+        'tqdm'        
     ],
     entry_points={
         'console_scripts': [
-            'std = scTopoDEC.__main__:main'
+            'scTopoDEC = scTopoDEC.__main__:main'
         ]
     },
     url='https://github.com/AugustusKH/scTopoDEC',
