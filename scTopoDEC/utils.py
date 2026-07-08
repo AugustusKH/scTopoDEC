@@ -128,7 +128,7 @@ def compute_target_distribution(q, gamma=1.0):
     """
     q = np.clip(q, 1e-10, 1.0)
     f_j = ops.sum(q, axis=0) + 1e-10
-    weight = ops.power(q, 2) / ops.power(f_j, gamma) # Add 1e-8 to avoid division by zero 
+    weight = ops.power(q, 2) / ops.power(f_j, gamma)  
     p = weight / (ops.sum(weight, axis=1, keepdims=True) + 1e-10)
     return np.nan_to_num(p)
 
