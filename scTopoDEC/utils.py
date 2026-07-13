@@ -193,7 +193,8 @@ def get_topo_representation(data, input_mode='pca', latent_mode='raw', n_compone
             return data
         elif latent_mode == 'inner_product':
             inner_product = tf.matmul(data, data, transpose_b=True)
-            return tg.get_latent_geometry(inner_product, k=None)
+            activated_inner_product = tf.nn.sigmoid(inner_product)
+            return tg.get_latent_geometry(activated_inner_product, k=None)
         elif latent_mode == 'euclid_dist':
             # Full (batch, batch) Euclidean distance
             return tg.get_latent_geometry(data, k=None)
