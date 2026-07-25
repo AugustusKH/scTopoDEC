@@ -44,9 +44,9 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 | `--batch_key` | `str` | `None` | `adata.obs` key for batch labels |
 | `--noise_sd` | `float` | `0.4` | Standard deviation of Gaussian noise added to input |
 | `--hidden_dropout` | `float` | `0.05` | Dropout rate applied to hidden layers (0.0 to 1.0) |
-| `--pretrain_epochs` | `int` | `800` | Autoencoder pretraining epochs |
+| `--pretrain_epochs` | `int` | `800` | Autoencoder pre-training epochs |
 | `--epochs` | `int` | `500` | Max training epochs |
-| `--pretrain_lr` | `float` | `1e-3` | Pretraining learning rate |
+| `--pretrain_lr` | `float` | `1e-3` | Pre-training learning rate |
 | `--lr` | `float` | `1e-4` | Learning rate |
 | `--update_interval` | `int` | `5` | Epochs between target distribution updates |
 | `--tol` | `float` | `1e-3` | Convergence threshold |
@@ -96,7 +96,7 @@ We can manually set the parameters similar to the command line running as below:
 
 ## Running scTopoDEC on large datasets
 
-To handle large datasets, we designed scTopoDEC to transfer the weights learned during denoising pretraining to the subsampled cells for clustering optimisation and topological training. The trained model weights are then used to predict cluster assignments for the remaining cells. 
+To handle large datasets, we designed scTopoDEC to transfer the weights learned during denoising pre-training to the subsampled cells for clustering optimisation and topological training. The trained model weights are then used to predict cluster assignments for the remaining cells. 
 
 To run scTopoDEC on large datasets, import the large-scale model module as shown below:
 
@@ -116,7 +116,7 @@ The model can run as follows:
 adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=2000, **stc_settings)
 ```
 
-We can set the number of sampling cells from the option `sampling_cells`. We also can perform resapling by changing the number of sampling without denoising again as the model just save the pretrained weights. We can run just only for the clustering and topological training as:
+We can set the number of sampling cells from the option `sampling_cells`. We also can perform resapling by changing the number of sampling without denoising again as the model just save the pre-trained weights. We can run just only for the clustering and topological training as:
 
 ```bash
 adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000, 
@@ -133,3 +133,4 @@ For the number of subsampled cells, we recommend sampling at least 10–20% of t
 | `initial_pretrain_weights` | `str` or `None` | `None` | Path to pre-trained weights |
 | `leiden_subsampling` | `bool` | `False` | Performs stratified subsampling using Leiden clusters to ensure diverse cell representation |
 | ` leiden_resolution` | `float` | `0.5` | Resolution parameter for the Leiden-based stratified subsampling |
+
