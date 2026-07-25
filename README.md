@@ -48,3 +48,17 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 | `--topo_size` | `int` | `256` | Number of cells sampled for topological loss calculation |
 | `--order` | `float` | `1.0` | Wasserstein exponent q for diagram distance |
 | `--k` | `int` | `100` | Nearest neighbors for graph construction |
+
+### Jupyter notebook
+
+For the Jupyter Notebook interface, import the scTopoDEC package before running the analysis, as shown below:
+
+```bash
+import scTopoDEC as stc
+```
+
+After that, we run the model based on adata files as follows:
+
+```bash
+stc.scTopoDEC(adata, n_clusters=18)
+```
