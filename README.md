@@ -58,11 +58,13 @@ For the Jupyter Notebook interface, import the scTopoDEC package before running 
 import scTopoDEC as stc
 ```
 
-After that, we run the model based on adata files as follows:
+After that, we can run the model based on `adata` files as follows:
 
 ```bash
-stc.scTopoDEC(adata, n_clusters=18)
+stc.scTopoDEC(adata, n_clusters=0)
 ```
+
+After the model has finished running, the scTopoDEC-derived cluster labels are stored in the same `adata` object. The clustering results can be accessed via `adata.obs['stc_cluster']`, while the latent representations learned by the model are available in `adata.obsm['X_stc']`.
 
 ## Running scTopoDEC on large datasets
 
