@@ -25,6 +25,7 @@ We run the command line for scTopoDEC as follows:
 ```bash
 scTopoDEC input_file.h5ad \
   --n_clusters 0 \
+  --loss_weights (1.0, 10.0, 0.1, 1.0) \
   --output output_file.h5ad
 ```
 
@@ -61,7 +62,7 @@ import scTopoDEC as stc
 After that, we can run the model based on `adata` files as follows:
 
 ```bash
-stc.scTopoDEC(adata, n_clusters=0)
+stc.scTopoDEC(adata, n_clusters=0, loss_weights=(1.0, 10.0, 0.1, 1.0))
 ```
 
 After the model has finished running, the scTopoDEC-derived cluster labels are stored in the same `adata` object. The clustering results can be accessed via `adata.obs['stc_cluster']`, while the latent representations learned by the model are available in `adata.obsm['X_stc']`.
@@ -102,7 +103,7 @@ from scTopoDEC.api_utils import run_scTopoDEC_large_data
 Next, we wil run the model on the large dataset. Before that, we will define standard parameters for scTopoDEC running as the dictionary data structure below:
 
 ```bash
-stc_settings = {'n_clusters': 0}
+stc_settings = {'n_clusters': 0, 'loss_weights': (1.0, 10.0, 0.1, 1.0)}
 ```
 
 The model can run as follows:
