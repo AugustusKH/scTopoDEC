@@ -8,10 +8,8 @@ Clustering remains a challenging task in scRNA-seq analysis despite the developm
   <img src="figure/scTopoDEC_architecture.png" width="600" title="Analysis Workflow">
 </p>
 
-## Quick Start
+## Installation
 
-### Installation
 ```bash
-git clone [https://github.com/AugustusKH/scTopoDEC.git](https://github.com/AugustusKH/scTopoDEC.git)
-cd scTopoDEC
-pip install -e .
+!pip install git+https://github.com/AugustusKH/scTopoDEC.git
+```
