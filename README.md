@@ -29,3 +29,7 @@ scTopoDEC input_file.h5ad \
 ```
 
 If the exact number of clusters is unknown, set `--n_clusters` to 0. The model will then automatically estimate the optimal number of clusters. The remaining parameters can be configured manually as described below; however, we recommend using the default settings.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `--hidden_size` | `str` | `(256, 32, 256)` | Network architecture as a tuple string |
