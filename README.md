@@ -128,9 +128,8 @@ For the number of subsampled cells, we recommend sampling at least 10–20% of t
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `sampling_threshold` | `int` | `(256, 32, 256)` | Sampling is done based on this threshold |
-| `sampling_cells` | `int` | `2000` | Loss weights `(ZINB, Cluster, SoftK, Topo)` as a tuple string |
-| `n_clusters` | `int` or `str` | `0` | Number of cells to subsample for clustering and topological training |
+| `sampling_threshold` | `int` | `10000` | Sampling is done based on this threshold |
+| `sampling_cells` | `int` | `2000` | Number of cells to subsample for clustering and topological training |
 | `initial_pretrain_weights` | `str` or `None` | `None` | Path to pre-trained weights |
 | `leiden_subsampling` | `bool` | `False` | Performs stratified subsampling using Leiden clusters 
                                    to ensure diverse cell representation |
