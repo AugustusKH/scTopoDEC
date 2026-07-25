@@ -12,6 +12,8 @@ Clustering remains a challenging task in scRNA-seq analysis despite the developm
 
 ## Installation
 
+scTopoDEC can be installed from GitHub directly via the code below:
+
 ```bash
 pip install git+https://github.com/AugustusKH/scTopoDEC.git
 ```
