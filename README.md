@@ -113,6 +113,25 @@ stc_settings = {'n_clusters': 0, 'loss_weights': (1.0, 10.0, 0.1, 1.0)}
 The model can run as follows:
 
 ```bash
-adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=15000, leiden_subsampling=True, leiden_resolution=1.0, **stc_settings)
+adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=2000, **stc_settings)
 ```
 
+We can set the number of sampling cells from the option `sampling_cells`. We also can perform resapling by changing the number of sampling without denoising again as the model just save the pretrained weights. We can run just only for the clustering and topological training as:
+
+```bash
+adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000, 
+                                         initial_pretrain_weights='global_pretrain_weights.weights.h5', 
+                                         **stc_settings)
+```
+
+For the number of subsampled cells, we recommend sampling at least 10–20% of the total number of cells. All sampling parameters are listed below:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `sampling_threshold` | `int` | `(256, 32, 256)` | Sampling is done based on this threshold |
+| `sampling_cells` | `int` | `2000` | Loss weights `(ZINB, Cluster, SoftK, Topo)` as a tuple string |
+| `n_clusters` | `int` or `str` | `0` | Number of cells to subsample for clustering and topological training |
+| `initial_pretrain_weights` | `str` or `None` | `None` | Path to pre-trained weights |
+| `leiden_subsampling` | `bool` | `False` | Performs stratified subsampling using Leiden clusters 
+                                   to ensure diverse cell representation |
+| ` leiden_resolution` | `float` | `0.5` | Resolution parameter for the Leiden-based stratified subsampling |
