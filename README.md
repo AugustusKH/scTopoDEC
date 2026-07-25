@@ -16,7 +16,7 @@ pip install git+https://github.com/AugustusKH/scTopoDEC.git
 
 ## Quick start
 
-scTopoDEC provides two execution options: a command-line interface and a Jupyter Notebook. We require an `.h5ad` file as the input in the model.
+scTopoDEC provides two execution options: a command-line interface and a Jupyter Notebook. We require an `.h5ad` file as the input in the model. As scTopoDEC is designed specifically for cell clustering, it processes the input .h5ad file, performs clustering, and writes the predicted cluster labels back to the original file as the output.
 
 ### Command line
 
@@ -24,10 +24,8 @@ We run the command line for scTopoDEC as follows:
 
 ```bash
 scTopoDEC input_file.h5ad \
-  --epochs 300 \
-  --pretrain_epochs 500 \
   --n_clusters 0 \
   --output output_file.h5ad
 ```
 
-If the exact number of clusters is unknown, set `--n_clusters` to 0. The model will then automatically estimate the optimal number of clusters.
+If the exact number of clusters is unknown, set `--n_clusters` to 0. The model will then automatically estimate the optimal number of clusters. The remaining parameters can be configured manually as described below; however, we recommend using the default settings.
