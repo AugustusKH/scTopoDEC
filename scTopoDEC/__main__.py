@@ -47,7 +47,7 @@ def main():
     parser.add_argument('--pretrain_epochs', type=int, default=800, help='Autoencoder pretraining epochs')
     parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate')
     parser.add_argument('--pretrain_lr', type=float, default=0.001, help='Pretraining learning rate')
-    parser.add_argument('--update_interval', type=int, default=10, help='Epochs between target distribution updates')
+    parser.add_argument('--update_interval', type=int, default=5, help='Epochs between target distribution updates')
     parser.add_argument('--tol', type=float, default=1e-3, help='Convergence tolerance')
     parser.add_argument('--no_cluster_stop', action='store_false', dest='cluster_early_stop', 
                         help='Disable early stopping during the clustering/DEC phase')
