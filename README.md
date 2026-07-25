@@ -133,4 +133,3 @@ For the number of subsampled cells, we recommend sampling at least 10–20% of t
 | `initial_pretrain_weights` | `str` or `None` | `None` | Path to pre-trained weights |
 | `leiden_subsampling` | `bool` | `False` | Performs stratified subsampling using Leiden clusters to ensure diverse cell representation |
 | ` leiden_resolution` | `float` | `0.5` | Resolution parameter for the Leiden-based stratified subsampling |
-
