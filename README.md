@@ -1,6 +1,8 @@
 # scTopoDEC 
 
-**Topological deep embedded clustering for single-cell RNA-seq data.**
+**Topological deep embedded clustering for single-cell RNA-seq data by persistent homology.**
+
+## Background
 
 Clustering remains a challenging task in scRNA-seq analysis despite the development of numerous computational methods. Here, we introduce **scTopoDEC (single-cell topological deep embedded clustering)**, a deep learning-based clustering method that incorporates **persistent homology** to improve clustering performance by preserving topological information in single-cell data.
 
