@@ -36,6 +36,7 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 | `--loss_weights` | `str` | `(1.0, 10.0, 0.1, 1.0)` | Loss weights `(ZINB, Cluster, SoftK, Topo)` as a tuple string |
 | `--n_clusters` | `str` | `0` | Number of clusters, if set to 0, will automatically determine optimal number of clusters |
 | `--n_top_genes` | `int` | `2000` | Number of highly variable genes used in model training |
+| `--batch_key` | `str` | `None` | `adata.obs` key for batch labels |
 | `--noise_sd` | `float` | `0.4` | Standard deviation of Gaussian noise added to input |
 | `--hidden_dropout` | `float` | `0.05` | Dropout rate applied to hidden layers (0.0 to 1.0) |
 | `--pretrain_epochs` | `int` | `800` | Autoencoder pretraining epochs |
@@ -62,3 +63,26 @@ After that, we run the model based on adata files as follows:
 ```bash
 stc.scTopoDEC(adata, n_clusters=18)
 ```
+
+## Running scTopoDEC on large datasets
+
+To handle large datasets, we designed scTopoDEC to transfer the weights learned during denoising pretraining to the subsampled cells for clustering optimisation and topological training. The trained model weights are then used to predict cluster assignments for the remaining cells. 
+
+To run scTopoDEC on large datasets, import the large-scale model module as shown below:
+
+```bash
+from scTopoDEC.api_utils import run_scTopoDEC_large_data
+```
+
+Next, we wil run the model on the large dataset. Before that, we will define standard parameters for scTopoDEC running as the dictionary data structure below:
+
+```bash
+stc_settings = {'n_clusters': 0}
+```
+
+The model can run as follows:
+
+```bash
+adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=15000, leiden_subsampling=True, leiden_resolution=1.0, **stc_settings)
+```
+

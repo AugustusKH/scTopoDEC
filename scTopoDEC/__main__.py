@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--no_hvg', action='store_false', dest='use_hvg', help='Disable HVG selection')
     parser.set_defaults(use_hvg=True)
     parser.add_argument('--ground_truth', type=str, default=None, help='adata.obs key for true labels')
+    parser.add_argument('--batch_key', type=str, default=None, help='adata.obs key for batch labels')
 
     # 6. Hyperparameter optimization args 
     parser.add_argument('--hyper', action='store_true', help='Run Hyperparameter Optimization mode')
@@ -214,6 +215,7 @@ def main():
             reduce_lr=args.reduce_lr,
             batch_size=args.batch_size,
             ground_truth=args.ground_truth,
+            batch_key=args.batch_key,
             ramp_mode=args.ramp_mode,
             res_ramp=res_ramp_obj,
             homology_dim=args.homology_dim,
