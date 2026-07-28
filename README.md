@@ -113,15 +113,15 @@ stc_settings = {'n_clusters': 0, 'loss_weights': (1.0, 10.0, 0.1, 1.0)}
 The model can run as follows:
 
 ```bash
-adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=2000, **stc_settings)
+large_adata, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=2000, **stc_settings)
 ```
 
 We can set the number of sampling cells from the option `sampling_cells`. We also can perform resapling by changing the number of sampling without denoising again as the model just save the pre-trained weights. We can run just only for the clustering and topological training as:
 
 ```bash
-adata_orig, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000, 
-                                         initial_pretrain_weights='global_pretrain_weights.weights.h5', 
-                                         **stc_settings)
+large_adata, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000, 
+                                          initial_pretrain_weights='global_pretrain_weights.weights.h5', 
+                                          **stc_settings)
 ```
 
 For the number of subsampled cells, we recommend sampling at least 10–20% of the total number of cells. All sampling parameters are listed below:
