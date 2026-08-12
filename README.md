@@ -10,6 +10,8 @@ Clustering remains a challenging task in scRNA-seq analysis despite the developm
   <img src="figures/scTopoDEC_architecture.png" width="600" title="Analysis Workflow">
 </p>
 
+Persistent homology is a computational method for analysing the topological structure of point-cloud data by identifying topological features that persist across multiple spatial scales. This makes it particularly useful for detecting meaningful topological structures in noisy biological data. scTopoDEC incorporates persistent homology into the clustering process to capture topological features of the data and thereby improve clustering performance.
+
 ## Installation
 
 scTopoDEC can be installed from GitHub directly via the code below:
