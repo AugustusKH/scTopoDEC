@@ -14,10 +14,11 @@ Persistent homology is a computational method for analysing the topological stru
 
 ## Installation
 
-scTopoDEC can be installed from GitHub directly via the code below:
+scTopoDEC can be installed directly from GitHub along with its required dependencies using the following commands:
 
 ```bash
 pip install git+https://github.com/AugustusKH/scTopoDEC.git
+pip install gudhi pot eagerpy scikit-misc igraph leidenalg
 ```
 
 ## Quick start
