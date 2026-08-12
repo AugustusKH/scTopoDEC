@@ -41,6 +41,11 @@ def main():
     # 4. Clustering and training args
     parser.add_argument('--n_clusters', type=int, default=0, 
                         help='Number of clusters, if set to 0, will use Leiden to determine optimal number of clusters')
+    parser.add_argument('--n_neighbors', type=int, default=15, 
+                        help='Number of neighbors for Leiden auto-detection (used when n_clusters=0)')
+    parser.add_argument('--resolution', type=float, default=0.5, 
+                        help='Resolution for Leiden auto-detection (used when n_clusters=0)')
+    
     parser.add_argument('--ramp_mode', action='store_true', help='Enable iterative resolution ramping')
     parser.add_argument('--res_ramp', type=str, default="(0.0, 0.1, 0.2, 0.5, 1.0)", help='Ramping factors')
     parser.add_argument('--epochs', type=int, default=500, help='Max training epochs')
@@ -49,12 +54,7 @@ def main():
     parser.add_argument('--pretrain_lr', type=float, default=0.001, help='Pretraining learning rate')
     parser.add_argument('--update_interval', type=int, default=5, help='Epochs between target distribution updates')
     parser.add_argument('--tol', type=float, default=1e-3, help='Convergence tolerance')
-    parser.add_argument('--no_cluster_stop', action='store_false', dest='cluster_early_stop', 
-                        help='Disable early stopping during the clustering/DEC phase')
-    parser.set_defaults(cluster_early_stop=True)
-    parser.add_argument('--cluster_patience', type=int, default=15, 
-                        help='Patience for clustering early stopping')
-
+    
     # 5. Topology specific args 
     parser.add_argument('--homology_dim', type=int, default=1, choices=[0, 1, 2], 
                         help='Dimension of persistent homology (1 for loops/trajectories)')
@@ -121,8 +121,12 @@ def main():
     parser.add_argument('--pretrain_optimizer', type=str, default='adam', help='Optimizer for Pretraining')
     parser.add_argument('--no_soft_kmean', action='store_false', dest='soft_kmean',
                         help='Disable soft k-mean loss (only relevant for DEC)')
-    parser.add_argument('--cluster_early_stop', action='store_true', 
+    
+    # Fixed early stopping flags and aligned defaults with api.py
+    parser.add_argument('--cluster_early_stop', action='store_true', dest='cluster_early_stop', 
                         help='Enable early stopping during the clustering/DEC phase')
+    parser.set_defaults(cluster_early_stop=False)
+    
     parser.add_argument('--reduce_lr', type=int, default=20, 
                         help='Patience for Reducing Learning Rate on plateau')
     parser.add_argument('--early_stop', type=int, default=30, 
@@ -187,6 +191,8 @@ def main():
             ae_type=args.ae_type,
             mode=args.mode,
             n_clusters=args.n_clusters,
+            n_neighbors=args.n_neighbors, 
+            resolution=args.resolution,
             alpha=args.alpha,
             gamma=args.gamma,
             hidden_size=hidden_size_obj,
@@ -208,11 +214,11 @@ def main():
             update_interval=args.update_interval,
             tol=args.tol,
             cluster_early_stop=args.cluster_early_stop, 
-            early_stop=args.cluster_patience,
             pretrain_epochs=args.pretrain_epochs,
             pretrain_optimizer=args.pretrain_optimizer,
             pretrain_learning_rate=args.pretrain_lr,
             reduce_lr=args.reduce_lr,
+            early_stop=args.early_stop,
             batch_size=args.batch_size,
             ground_truth=args.ground_truth,
             batch_key=args.batch_key,
