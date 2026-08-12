@@ -69,13 +69,13 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 
 For the Jupyter Notebook interface, import the scTopoDEC package before running the analysis, as shown below:
 
-```bash
+```python
 import scTopoDEC as stc
 ```
 
 After that, we can run the model based on `adata` files as follows:
 
-```bash
+```python
 stc.scTopoDEC(adata, n_clusters=0, loss_weights=(1.0, 10.0, 0.1, 1.0))
 ```
 
@@ -110,25 +110,25 @@ To handle large datasets, we designed scTopoDEC to transfer the weights learned 
 
 To run scTopoDEC on large datasets, import the large-scale model module as shown below:
 
-```bash
+```python
 from scTopoDEC.api_utils import run_scTopoDEC_large_data
 ```
 
 Next, we wil run the model on the large dataset. Before that, we will define standard parameters for scTopoDEC running as the dictionary data structure below:
 
-```bash
+```python
 stc_settings = {'n_clusters': 0, 'loss_weights': (1.0, 10.0, 0.1, 1.0)}
 ```
 
 The model can run as follows:
 
-```bash
+```python
 large_adata, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=2000, **stc_settings)
 ```
 
 We can set the number of sampling cells from the option `sampling_cells`. We also can perform resapling by changing the number of sampling without denoising again as the model just save the pre-trained weights. We can run just only for the clustering and topological training as:
 
-```bash
+```python
 large_adata, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000, 
                                           initial_pretrain_weights='global_pretrain_weights.weights.h5', 
                                           **stc_settings)
