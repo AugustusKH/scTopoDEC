@@ -36,7 +36,7 @@ We run the command line for scTopoDEC as follows:
 ```bash
 scTopoDEC input_file.h5ad \
   --n_clusters 0 \
-  --loss_weights (1.0, 10.0, 0.1, 1.0) \
+  --loss_weights "(1.0, 10.0, 0.1, 1.0)" \
   --output output_file.h5ad
 ```
 
@@ -44,8 +44,8 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `--hidden_size` | `str` | `(256, 32, 256)` | Network architecture as a tuple string |
-| `--loss_weights` | `str` | `(1.0, 10.0, 0.1, 1.0)` | Loss weights `(ZINB, Cluster, SoftK, Topo)` as a tuple string |
+| `--hidden_size` | `str` | `"(256, 32, 256)"` | Network architecture as a tuple string |
+| `--loss_weights` | `str` | `"(1.0, 10.0, 0.1, 1.0)"` | Loss weights `(ZINB, Cluster, SoftK, Topo)` as a tuple string |
 | `--n_clusters` | `int` | `0` | Number of clusters, if set to 0, will automatically determine optimal number of clusters |
 | `--n_top_genes` | `int` | `2000` | Number of highly variable genes used in model training |
 | `--batch_key` | `str` | `None` | `adata.obs` key for batch labels |
