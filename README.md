@@ -57,7 +57,7 @@ If the exact number of clusters is unknown, set `--n_clusters` to 0. The model w
 | `--lr` | `float` | `1e-4` | Learning rate |
 | `--update_interval` | `int` | `5` | Epochs between target distribution updates |
 | `--tol` | `float` | `1e-3` | Convergence threshold |
-| `--maximum_edge_length` | `float` | `1e-3` | Filtration cutoff when running persistent homology |
+| `--maximum_edge_length` | `float` | `1.0` | Filtration cutoff when running persistent homology |
 | `--topo_size` | `int` | `256` | Number of cells sampled for topological loss calculation |
 | `--order` | `float` | `1.0` | Wasserstein exponent q for diagram distance |
 | `--k` | `int` | `100` | Nearest neighbors for graph construction |
@@ -95,7 +95,7 @@ We can manually set the parameters similar to the command line running as below:
 | `lr` | `float` | `1e-4` | Learning rate |
 | `update_interval` | `int` | `5` | Epochs between target distribution updates |
 | `tol` | `float` | `1e-3` | Convergence threshold |
-| `maximum_edge_length` | `float` | `1e-3` | Filtration cutoff when running persistent homology |
+| `maximum_edge_length` | `float` | `1.0` | Filtration cutoff when running persistent homology |
 | `topo_size` | `int` | `256` | Number of cells sampled for topological loss calculation |
 | `order` | `float` | `1.0` | Wasserstein exponent q for diagram distance |
 | `k` | `int` | `100` | Nearest neighbors for graph construction |
