@@ -159,8 +159,14 @@ def read_dataset(adata, transpose=False, test_split=False, copy=False, check_cou
                 adata.X = adata.layers["counts"].copy()
                 if spare_to_dense:
                     adata = spare_to_dense_count(adata)
+            # Step 3: Check if .raw exists and is raw
+            elif adata.raw is not None and is_raw_counts(adata.raw.X):
+                print("Success: Found raw data in adata.raw.X. Restoring AnnData from raw state.")
+                adata = adata.raw.to_adata()
+                if spare_to_dense:
+                    adata = spare_to_dense_count(adata)
             else:
-                # Step 3: Critical Failure
+                # Step 4: Critical Failure
                 raise ValueError(
                     "Error: No raw counts found. ZINB loss requires integer counts. "
                     "Ensure raw data is in adata.X or adata.layers['counts']."
