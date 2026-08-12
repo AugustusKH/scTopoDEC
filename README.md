@@ -25,7 +25,9 @@ pip install gudhi pot eagerpy scikit-misc igraph leidenalg
 
 scTopoDEC provides two execution options: a command-line interface (CLI) and a Jupyter Notebook. The model requires an `.h5ad` file as input. As scTopoDEC is specifically designed for cell clustering, it processes the input `.h5ad` file, performs clustering, and writes the predicted cluster labels back to the same adata object as the output.
 
-Because the underlying architecture uses a Zero-Inflated Negative Binomial (ZINB) loss, scTopoDEC requires raw, uncorrected integer count matrices. Users should ensure that the raw count matrix is stored in `adata.X`, `adata.raw.X`, or `adata.layers['counts']`. Although scTopoDEC is relatively robust to batch effects, we do not recommend applying the model to datasets with severe batch effects. 
+Because the underlying architecture uses a Zero-Inflated Negative Binomial (ZINB) loss, scTopoDEC requires raw, uncorrected integer count matrices. Users should ensure that the raw count matrix is stored in `adata.X`, `adata.raw.X`, or `adata.layers['counts']`. 
+
+scTopoDEC includes built-in batch covariate adjustment via the `batch_key` parameter. When a batch key is provided, the model utilises a conditional autoencoder architecture to account for technical variation internally. Although scTopoDEC is relatively robust to batch effects, we do not recommend applying the model to datasets with severe batch effects. 
 
 scTopoDEC uses the GUDHI package to compute the topological loss. The model does not require a GPU and can therefore be run on a standard CPU.
 
@@ -39,6 +41,7 @@ scTopoDEC input_file.h5ad \
   --loss_weights "(1.0, 10.0, 0.1, 1.0)" \
   --output output_file.h5ad
 ```
+In the CLI, the model can saves the predicted cluster labels and results to a separate output file via `--output` function, leaving original input files completely unmodified.
 
 If the exact number of clusters is unknown, set `--n_clusters` to 0. The model will then automatically estimate the optimal number of clusters via a single Leiden run. For highly complex datasets, users are encouraged to manually tune the `--resolution` parameter or explicitly define `--n_clusters` based on prior biological knowledge. The remaining parameters can be configured manually as described below; however, we recommend using the default settings.
 
@@ -139,4 +142,4 @@ For the number of subsampled cells, we recommend sampling at least 10–20% of t
 | `sampling_cells` | `int` | `2000` | Number of cells to subsample for clustering and topological training |
 | `initial_pretrain_weights` | `str` or `None` | `None` | Path to pre-trained weights |
 | `leiden_subsampling` | `bool` | `False` | Performs stratified subsampling using Leiden clusters to ensure diverse cell representation |
-| ` leiden_resolution` | `float` | `0.5` | Resolution parameter for the Leiden-based stratified subsampling |
+| `leiden_resolution` | `float` | `0.5` | Resolution parameter for the Leiden-based stratified subsampling |
