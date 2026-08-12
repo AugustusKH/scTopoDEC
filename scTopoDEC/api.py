@@ -395,6 +395,9 @@ def scTopoDEC(adata,                              # single-cell args
                             size_factors=normalize_per_cell, 
                             logtrans_input=log1p, 
                             normalize_input=scale)
+
+    # Restrict n_components for small datasets to prevent PCA eigensolver failure
+    n_components = min(n_components, min(adata_train.n_obs, adata_train.n_vars) - 1)
     
     # 4. Handle batch one-hot encoding 
     n_batch = 0
