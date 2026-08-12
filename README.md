@@ -106,7 +106,7 @@ We can manually set the parameters similar to the command line running as below:
 
 ## Running scTopoDEC on large datasets
 
-To handle large datasets, we designed scTopoDEC to transfer the weights learned during denoising pre-training to the subsampled cells for clustering optimisation and topological training. The trained model weights are then used to predict cluster assignments for the remaining cells. 
+To handle large datasets, generally those containing more than 10,000 cells, scTopoDEC transfers the weights learned during denoising pre-training to a subsampled set of cells for clustering optimisation and topological training. The resulting trained model is then used to predict cluster assignments for the remaining cells.
 
 To run scTopoDEC on large datasets, import the large-scale model module as shown below:
 
