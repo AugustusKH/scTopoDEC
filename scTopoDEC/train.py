@@ -317,7 +317,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
         if verbose:
             print(f"Restoring training weights from: {initial_train_weights}")
         network.load_weights(initial_train_weights)
-    else:
+    elif initial_train_weights:
         print(f"Warning: {initial_train_weights} not found. Starting clustering training.")
 
     # 3. Setup Optimizer
@@ -589,7 +589,7 @@ def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8
         if verbose:
             print(f"Restoring training weights from: {initial_train_weights}")
         network.load_weights(initial_train_weights)
-    else:
+    elif initial_train_weights:
         print(f"Warning: {initial_train_weights} not found. Starting clustering training.")
 
     # 3. Setup Optimizer and Manual Train Step
