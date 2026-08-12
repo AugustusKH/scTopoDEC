@@ -242,7 +242,7 @@ def pretrain(adata, network, output_dir=None, optimizer='adam', learning_rate=0.
 # Clustering (DEC)
 # ==============================================================================
 
-def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, random_state=0, 
+def train(adata, network, auto_detect=False, n_neighbors=15, resolution=0.5, random_state=0, 
           train_output_dir=None, initial_train_weights=None, save_train_weights=True, 
           save_train_interval=5, optimizer='adam', learning_rate=0.01, epochs=300, 
           update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0, 0), gamma=1.0,
@@ -518,7 +518,7 @@ def train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, ran
     return y_pred
 
 
-def ramp_train(adata, network, auto_detect=False, n_neighbors=20, resolution=0.8, random_state=0, train_output_dir=None, 
+def ramp_train(adata, network, auto_detect=False, n_neighbors=15, resolution=0.5, random_state=0, train_output_dir=None, 
                initial_train_weights=None, save_train_weights=True, save_train_interval=5, optimizer='adam', 
                learning_rate=0.001, epochs=300, update_interval=10, batch_size=256, tol=1e-3, loss_weights=(1, 1, 0.1, 0), 
                gamma=1.0, soft_kmean=True, use_raw_as_output=True, verbose=True, ground_truth=None, pretrain_output_dir=None, 

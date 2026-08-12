@@ -46,8 +46,8 @@ def main():
     parser.add_argument('--resolution', type=float, default=0.5, 
                         help='Resolution for Leiden auto-detection (used when n_clusters=0)')
     
-    parser.add_argument('--ramp_mode', action='store_true', help='Enable iterative resolution ramping')
-    parser.add_argument('--res_ramp', type=str, default="(0.0, 0.1, 0.2, 0.5, 1.0)", help='Ramping factors')
+    parser.add_argument('--ramp_mode', action='store_true', help='Enable iterative loss weight ramping')
+    parser.add_argument('--res_ramp', type=str, default="(0.0, 0.1, 0.2, 0.5, 1.0)", help='Loss weight ramping factors')
     parser.add_argument('--epochs', type=int, default=500, help='Max training epochs')
     parser.add_argument('--pretrain_epochs', type=int, default=800, help='Autoencoder pretraining epochs')
     parser.add_argument('--lr', type=float, default=0.0001, help='Learning rate')

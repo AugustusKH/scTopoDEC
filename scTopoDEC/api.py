@@ -167,9 +167,9 @@ def scTopoDEC(adata,                              # single-cell args
             target the raw counts.
         log1p : `bool`, optional (default: True)
             If True, the input is log-transformed (log(1+x)) for the encoder.
-        hidden_size : `tuple` or `list`, optional (default: (256, 64, 32, 64, 256))
+        hidden_size : `tuple` or `list`, optional (default: (256, 32, 256))
             Number of neurons in hidden layers (symmetric for encoder/decoder).
-        noise_sd : `float` or None, optional (default: 0.2)
+        noise_sd : `float` or None, optional (default: 0.4)
             Random Gaussian noise adding to inputs and encoder layers. If None is set, the noise
             is estimated based on baseline separability (Silhouette Score) of the dataset.
         hidden_dropout : `float`, optional (default: 0.05)
