@@ -131,7 +131,7 @@ large_adata, _ = run_scTopoDEC_large_data(large_adata, sampling_cells=5000,
                                           **stc_settings)
 ```
 
-For the number of subsampled cells, we recommend sampling at least 10–20% of the total number of cells. All sampling parameters are listed below:
+For the number of subsampled cells, we recommend sampling at least 10–20% of the total number of cells. Datasets larger than `sampling_threshold` (default 10,000 cells) are automatically subsampled to `sampling_cells` for the clustering and topological stages; smaller datasets are used in full, and `sampling_cells` has no effect. Because we recommend subsampling 10–20% of cells, raise `sampling_cells` above its 2,000 default for datasets beyond roughly 20,000 cells.. All sampling parameters are listed below:
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
