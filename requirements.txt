@@ -1,0 +1,17 @@
+numpy
+keras>=3.0
+tensorflow
+scanpy
+scikit-learn
+h5py
+anndata
+optuna
+tqdm
+gudhi
+pot
+eagerpy
+scikit-misc
+igraph
+leidenalg
+pandas
+matplotlib

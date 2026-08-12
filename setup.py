@@ -18,7 +18,15 @@ setup(
         'h5py',      
         'anndata',   
         'optuna',     
-        'tqdm'        
+        'tqdm',
+        "gudhi",
+        "pot",
+        "eagerpy",
+        "scikit-misc",
+        "igraph",
+        "leidenalg",
+        "pandas",
+        "matplotlib"        
     ],
     entry_points={
         'console_scripts': [
