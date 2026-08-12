@@ -4,7 +4,7 @@
 
 ## Background
 
-Clustering remains a challenging task in scRNA-seq analysis despite the development of numerous computational methods. Here, we introduce **scTopoDEC (single-cell topological deep embedded clustering)**, a deep learning-based clustering method that incorporates **persistent homology** to improve clustering performance by preserving topological information in single-cell data.
+Clustering remains a challenging task in scRNA-seq analysis despite the development of numerous computational methods. Here, we introduce **scTopoDEC (single-cell topological deep embedded clustering)**, a deep learning-based clustering method that incorporates **persistent homology** to improve clustering performance by preserving topological information in single-cell data. 
 
 <p align="center">
   <img src="figures/scTopoDEC_architecture.png" width="600" title="Analysis Workflow">
@@ -20,7 +20,11 @@ pip install git+https://github.com/AugustusKH/scTopoDEC.git
 
 ## Quick start
 
-scTopoDEC provides two execution options: a command-line interface and a Jupyter Notebook. We require an `.h5ad` file as the input in the model. As scTopoDEC is designed specifically for cell clustering, it processes the input .h5ad file, performs clustering, and writes the predicted cluster labels back to the original file as the output.
+scTopoDEC provides two execution options: a command-line interface (CLI) and a Jupyter Notebook. The model requires an `.h5ad` file as input. As scTopoDEC is specifically designed for cell clustering, it processes the input `.h5ad` file, performs clustering, and writes the predicted cluster labels back to the same adata object as the output.
+
+Because the underlying architecture uses a Zero-Inflated Negative Binomial (ZINB) loss, scTopoDEC requires raw, uncorrected integer count matrices. Users should ensure that the raw count matrix is stored in `adata.X`, `adata.raw.X`, or `adata.layers['counts']`. Although scTopoDEC is relatively robust to batch effects, we do not recommend applying the model to datasets with severe batch effects. 
+
+scTopoDEC uses the GUDHI package to compute the topological loss. The model does not require a GPU and can therefore be run on a standard CPU.
 
 ### Command line
 
